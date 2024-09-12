@@ -1,2 +1,2 @@
 # Schedgehammer
-Auto-Tuning Beyond Numerical Parameters
+Auto-Tuning Compiler Optimizations Beyond Numerical Parameters
