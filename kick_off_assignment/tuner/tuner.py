@@ -1,22 +1,34 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 import random
 
-from tuner.parameter import Config, SwitchParameter, RealParameter, IntegerParameter, OrdinalParameter, CategoricalParameter, PermutationParameter
+from tuner.parameter import (
+    SearchSpace,
+    SwitchParameter,
+    RealParameter,
+    IntegerParameter,
+    OrdinalParameter,
+    CategoricalParameter,
+    PermutationParameter,
+)
+
+ConfigDict = dict[str, bool | float | int | str | list[int]]
 
 
 @dataclass
 class Tuner:
-    config: Config
+    search_space: SearchSpace
+    cost_fn: Callable[[dict[str, any]], float]
+    results: list[tuple[float, ConfigDict]] = field(default_factory=list)
     budget: int = 100
 
-    def get_dict(self) -> dict[str, bool | float | int | str | list[int]]:
+    def random_sampling(self) -> ConfigDict:
         ret = {}
 
-        for [name, param] in self.config.parameters.items():
+        for [name, param] in self.search_space.parameters.items():
             match param:
                 case SwitchParameter():
-                    ret[name] = True
+                    ret[name] = True if random.random() < 0.5 else False
                 case RealParameter(min, max):
                     ret[name] = min + random.random() * (max - min)
                 case IntegerParameter(min, max):
@@ -30,18 +42,14 @@ class Tuner:
                     random.shuffle(tmp)
                     ret[name] = tmp
 
-        return ret
+        cost = self.cost_fn(ret)
+        self.results.append((cost, ret))
 
-    def tune(self, cost_fn: Callable[[dict[str, any]], float]) -> float:
-        min_dict = self.get_dict()
-        min = cost_fn(min_dict)
+    def tune(self):
         for _ in range(self.budget):
-            cur_dict = self.get_dict()
-            cur = cost_fn(cur_dict)
+            self.random_sampling()
 
-            min = cur if cur < min else min
-            min_dict = cur_dict if cur < min else min_dict
+        min, min_dict = sorted(self.results, key=lambda x: x[0])[0]
 
         print(f"minimal cost: {min}")
         print(f"minimal dict: {min_dict}")
-        return min

@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-from random import shuffle
-import random
 
 
 @dataclass
@@ -41,5 +39,5 @@ class PermutationParameter(Parameter):
 
 
 @dataclass
-class Config:
+class SearchSpace:
     parameters: dict[str, Parameter]
