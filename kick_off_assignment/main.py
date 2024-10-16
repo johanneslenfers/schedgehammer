@@ -1,15 +1,14 @@
 import numpy as np
-from tuner.tuner import Tuner, ConfigDict
-
 from tuner.parameter import (
-    SearchSpace,
-    SwitchParameter,
-    RealParameter,
+    CategoricalParameter,
     IntegerParameter,
     OrdinalParameter,
-    CategoricalParameter,
     PermutationParameter,
+    RealParameter,
+    SearchSpace,
+    SwitchParameter,
 )
+from tuner.tuner import ConfigDict, Tuner
 
 
 # a synthetic cost function
@@ -149,8 +148,12 @@ def main():
         }
     )
 
-    tuner = Tuner(search_space, cost)
-    tuner.tune()
+    tuner = Tuner(search_space, lambda config: 100 - cost(config), budget=100000)
+    # min, min_dict = tuner.random_sampling()
+    min, min_dict = tuner.genetic_algo()
+
+    print(f"min: {100 - min}")
+    print(f"min dict: {min_dict}")
 
 
 if __name__ == "__main__":
