@@ -1,5 +1,7 @@
 from cost import cost
-from tuner import RandomTuner
+from random_search import RandomSearch
+from local_search import LocalSearch
+
 from tuning_problem import TuningProblem, BooleanParameter, RealParameter, IntegerParameter, \
     OrdinalParameter, CategoricalParameter, PermutationParameter
 
@@ -10,6 +12,8 @@ my_tuning_problem = TuningProblem({
             "power": OrdinalParameter([1, 2, 4, 8, 16]),
             "creature": CategoricalParameter(['dwarf', 'halfling', 'gold_golem', 'mage', 'naga', 'genie', 'dragon_golem', 'titan']),
             "order": PermutationParameter(5),
-        }, cost)
+        }, lambda x: -cost(x)  # Invert function to make it minimization problem.
+)
 
-RandomTuner(my_tuning_problem).forever()
+# RandomSearch(my_tuning_problem).forever()
+LocalSearch(my_tuning_problem).forever()

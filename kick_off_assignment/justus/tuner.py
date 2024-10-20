@@ -21,6 +21,9 @@ class Tuner(metaclass=ABCMeta):
         print(s)
 
     def forever(self):
+        """
+        Tune forever and display best result.
+        """
         try:
             tune = self.tune()
             (solution, score) = next(tune)
@@ -34,28 +37,38 @@ class Tuner(metaclass=ABCMeta):
         except KeyboardInterrupt:
             return
 
-    @abstractmethod
+    def num_evaluations(self, n):
+        """
+        Tune for n evaluations.
+        :param n:
+        """
+        tune = self.tune()
+        (solution, score) = next(tune)
+        self.print(solution, score)
+        last_score = score
+        for i in range(n - 1):
+            (solution, score) = next(tune)
+            if last_score != score:
+                self.print(solution, score, rewrite=True)
+                last_score = score
+
     def tune(self) -> Generator[Tuple[TuningConfig, float], None, None]:
+        tune = self.generate_tuning()
+        best_score = math.inf
+        best_solution = None
+        while True:
+            solution, score = next(tune)
+            if score < best_score:
+                best_score = score
+                best_solution = solution.copy()
+            yield best_solution, best_score
+
+    @abstractmethod
+    def generate_tuning(self) -> Generator[Tuple[TuningConfig, float], None, None]:
         pass
 
-
-class RandomTuner(Tuner):
-
-    def random_config(self):
+    def random_config(self) -> TuningConfig:
         c = {}
         for name in self.tuning_problem.parameters:
             c[name] = self.tuning_problem.parameters[name].random_value()
         return c
-
-    def tune(self):
-        best_solution = None
-        best_score = math.inf
-
-        while True:
-            solution = self.random_config()
-            score = self.tuning_problem.cost(solution)
-            if score < best_score:
-                best_solution = solution
-                best_score = score
-            yield best_solution, best_score
-
