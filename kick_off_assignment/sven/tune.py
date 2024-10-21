@@ -57,6 +57,15 @@ def load_params(file_name) -> SearchSpace:
 
 
 def tune(params: SearchSpace, time_budget: int, time_budget_exponent: int = 1) -> float:
+    """
+    Tune the parameters in the search
+    Args:
+        params: SearchSpace with the parameters to tune
+        time_budget: The time budget in seconds
+        time_budget_exponent: The exponent for the time budget calculation for testing short time budgets
+
+    Example: tune(params, 1, -2) will have a time budget of 1*10^-2 = 0.01 seconds
+    """
     # Calculate total complexity and time budget
     total_complexity = sum(
         group.get_complexity_score() for group in params.param_groups
