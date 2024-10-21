@@ -148,7 +148,8 @@ def main():
         }
     )
 
-    tuner = Tuner(search_space, lambda config: 100 - cost(config), budget=100000)
+    tuner = Tuner(search_space, lambda config: 100 - cost(config), budget=10000)
+
     # min, min_dict = tuner.random_sampling()
     min, min_dict = tuner.genetic_algo()
 

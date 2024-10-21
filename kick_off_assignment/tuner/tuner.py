@@ -65,6 +65,7 @@ class Tuner:
         elitism_size = int(population_size * elitism_share)
         reproduction_size = int(population_size * reproduction_share)
 
+        # initial population
         population = []
         for _ in range(population_size):
             ret = {}
@@ -78,15 +79,18 @@ class Tuner:
 
         for i in range(generations - 1):
             population = sorted(population, key=lambda x: x[0])
+            # keep best performing configs
             new_population = population[:elitism_size]
 
             for _ in range(population_size - elitism_size):
+                # choose parents from best performing configs
                 parent_one = random.choice(population[:reproduction_size])[1]
                 parent_two = random.choice(population[:reproduction_size])[1]
 
                 child = {}
                 for [k1, v1], [k2, v2] in zip(parent_one.items(), parent_two.items()):
                     assert k1 == k2
+                    # crossover and / or mutation
                     if random.random() < crossover_prob:
                         child[k1] = v1
                     else:
@@ -101,4 +105,4 @@ class Tuner:
             population = new_population
             self.results.extend(population)
 
-        return sorted(self.results, key=lambda x: x[0])[0]
+        return population[0]
