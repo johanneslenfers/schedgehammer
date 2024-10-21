@@ -37,20 +37,23 @@ class Tuner(metaclass=ABCMeta):
         except KeyboardInterrupt:
             return
 
-    def num_evaluations(self, n):
+    def num_evaluations(self, n, print=True):
         """
         Tune for n evaluations.
         :param n:
         """
         tune = self.tune()
         (solution, score) = next(tune)
-        self.print(solution, score)
+        if print:
+            self.print(solution, score)
         last_score = score
         for i in range(n - 1):
             (solution, score) = next(tune)
             if last_score != score:
-                self.print(solution, score, rewrite=True)
+                if print:
+                    self.print(solution, score, rewrite=True)
                 last_score = score
+        return solution, score
 
     def tune(self) -> Generator[Tuple[TuningConfig, float], None, None]:
         tune = self.generate_tuning()

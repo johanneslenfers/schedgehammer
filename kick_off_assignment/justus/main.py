@@ -1,4 +1,5 @@
 from cost import cost
+from bayesian_optimization import BayesianOptimization
 from random_search import RandomSearch
 from local_search import LocalSearch
 
@@ -16,4 +17,5 @@ my_tuning_problem = TuningProblem({
 )
 
 # RandomSearch(my_tuning_problem).forever()
-LocalSearch(my_tuning_problem).forever()
+# LocalSearch(my_tuning_problem).forever()
+BayesianOptimization(my_tuning_problem, initial_sample_size=20).forever()

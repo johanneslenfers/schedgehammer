@@ -12,11 +12,7 @@ class TuningParameter(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def mutate_value(self, value: TuningParameterValue) -> TuningParameterValue:
-        pass
-
-    @abstractmethod
-    def cross_values(self, value1: TuningParameterValue, value2: TuningParameterValue) -> TuningParameterValue:
+    def distance(self, value1: TuningParameterValue, value2: TuningParameterValue) -> float:
         pass
 
 
@@ -25,11 +21,11 @@ class BooleanParameter(TuningParameter):
     def random_value(self) -> bool:
         return random.choice([True, False])
 
-    def mutate_value(self, value: bool) -> bool:
-        return not value
-
-    def cross_values(self, value1: bool, value2: bool) -> bool:
-        return random.choice([value1, value2])
+    def distance(self, value1: bool, value2: bool) -> float:
+        if value1 != value2:
+            return 1
+        else:
+            return 0
 
 
 class IntegerParameter(TuningParameter):
@@ -44,11 +40,8 @@ class IntegerParameter(TuningParameter):
     def random_value(self) -> int:
         return random.randint(self.min_value, self.max_value)
 
-    def mutate_value(self, value: int) -> int:
-        pass
-
-    def cross_values(self, value1: int, value2: int) -> int:
-        pass
+    def distance(self, value1: int, value2: int) -> float:
+        return abs(value1 - value2)
 
 
 class RealParameter(TuningParameter):
@@ -63,11 +56,8 @@ class RealParameter(TuningParameter):
     def random_value(self) -> float:
         return random.uniform(self.min_value, self.max_value)
 
-    def mutate_value(self, value: float) -> float:
-        pass
-
-    def cross_values(self, value1: float, value2: float) -> float:
-        pass
+    def distance(self, value1: float, value2: float) -> float:
+        return abs(value1 - value2)
 
 
 class OrdinalParameter(TuningParameter):
@@ -80,11 +70,8 @@ class OrdinalParameter(TuningParameter):
     def random_value(self) -> int:
         return random.choice(self.values)
 
-    def mutate_value(self, value: int) -> int:
-        pass
-
-    def cross_values(self, value1: int, value2: int) -> int:
-        pass
+    def distance(self, value1: int, value2: int) -> float:
+        return abs(self.values.index(value1) - self.values.index(value2))
 
 
 class CategoricalParameter(TuningParameter):
@@ -97,11 +84,11 @@ class CategoricalParameter(TuningParameter):
     def random_value(self) -> str:
         return random.choice(self.values)
 
-    def mutate_value(self, value: str) -> str:
-        pass
-
-    def cross_values(self, value1: str, value2: str) -> str:
-        pass
+    def distance(self, value1: int, value2: int) -> float:
+        if value1 != value2:
+            return 1
+        else:
+            return 0
 
 
 class PermutationParameter(TuningParameter):
@@ -116,12 +103,9 @@ class PermutationParameter(TuningParameter):
         random.shuffle(l)
         return l
 
-    def mutate_value(self, value: List[int]) -> List[int]:
-        pass
-
-    def cross_values(self, value1: List[int], value2: List[int]) -> List[int]:
-        pass
-
+    def distance(self, value1: List[int], value2: List[int]) -> float:
+        # Spearman
+        return sum([(value1.index(i) - value2.index(i)) ** 2 for i in range(1, self.size + 1)])
 
 class TuningProblem(metaclass=ABCMeta):
     parameters: dict[str, TuningParameter]
