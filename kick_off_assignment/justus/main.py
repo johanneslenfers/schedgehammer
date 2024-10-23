@@ -18,4 +18,4 @@ my_tuning_problem = TuningProblem({
 
 # RandomSearch(my_tuning_problem).forever()
 # LocalSearch(my_tuning_problem).forever()
-BayesianOptimization(my_tuning_problem, initial_sample_size=20).forever()
+BayesianOptimization(my_tuning_problem, initial_sample_size=100).forever()

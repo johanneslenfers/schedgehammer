@@ -3,6 +3,7 @@ from typing import Generator, Tuple, Dict, List
 import numpy as np
 import scipy
 
+from random_search import RandomSearch
 from local_search import LocalSearch
 from tuning_problem import TuningConfig, TuningProblem
 from tuner import Tuner
@@ -31,7 +32,9 @@ class BayesianOptimization(Tuner):
                 if i < j:
                     matrix[i, j] = math.exp(-self.distance(values[i], values[j], thetas, ps))
 
-        return matrix + matrix.T + np.identity(n) * 1.001  # Make symmetric matrix.
+        # Make symmetric matrix, but add tiny bit to diagonal, because that might make it invertable sometimes?
+        return matrix + matrix.T + np.identity(n) * 1.00000000000001
+
 
     def likelihood_func(self, parameters, xs, ys):
         n = len(self.tuning_problem.parameters)
@@ -44,7 +47,7 @@ class BayesianOptimization(Tuner):
         part_thing = (ys - mean * ones).T @ r_inv @ (ys - mean * ones)
         stddev = part_thing / self.initial_sample_size
         return (math.exp(part_thing / (2 * stddev)) /
-                ((2 * math.pi) ** (n / 2) * stddev ** (n / 2)))  # theoretically needs sqrt(det(R)), but that messes stuff up.
+                ((2 * math.pi) ** (n / 2) * stddev ** (n / 2) * math.sqrt(abs(np.linalg.det(r)))))
 
     def evaluate_in_model(self, config, xs, ys, mean, stddev, r_inv, thetas, ps, f_min):
         dist = []
@@ -52,10 +55,10 @@ class BayesianOptimization(Tuner):
         for x in xs:
             dist.append(math.exp(-self.distance(config, x, thetas, ps)))
         dist = np.array(dist)
-        this_mean = mean + dist.T @ r_inv @ (ys - mean)
-        this_stddev = stddev * (1 - dist.T @ r_inv @ dist + ((1 - ones.T @ r_inv @ dist) ** 2) / (ones.T @ r_inv @ ones))
-        this_variance = math.sqrt(abs(this_stddev))
-        ei = (f_min - this_mean) * scipy.stats.norm.pdf((f_min - this_mean) / this_variance) + this_variance * scipy.stats.norm.cdf((f_min - this_mean) / this_variance)
+        predict_mean = mean + dist.T @ r_inv @ (ys - mean)
+        predict_stddev = stddev * (1 - dist.T @ r_inv @ dist + ((1 - ones.T @ r_inv @ dist) ** 2) / (ones.T @ r_inv @ ones))
+        predict_variance = math.sqrt(abs(predict_stddev))
+        ei = (f_min - predict_mean) * scipy.stats.norm.cdf((f_min - predict_mean) / predict_variance) + predict_variance * scipy.stats.norm.pdf((f_min - predict_mean) / predict_variance)
         return ei
 
 
@@ -63,6 +66,7 @@ class BayesianOptimization(Tuner):
         n = len(self.tuning_problem.parameters)
         xs = []
         ys = []
+        # Is it ok to just use random samples? And can I redo the parameter tuning later, when I have more samples?
         for _ in range(self.initial_sample_size):
             x = self.random_config()
             xs.append(x)
@@ -92,7 +96,7 @@ class BayesianOptimization(Tuner):
         while True:
             search = LocalSearch(TuningProblem(self.tuning_problem.parameters,
                                       lambda value: -self.evaluate_in_model(value, xs, ys, mean, stddev, r_inv, thetas, ps, f_min=best_score)))
-            solution, expected_score = search.num_evaluations(1000, False)
+            solution, expected_score = search.num_evaluations(10000, False)
             score = self.tuning_problem.cost(solution)
             yield solution, score
             print(solution, expected_score, score)
