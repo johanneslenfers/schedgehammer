@@ -109,18 +109,18 @@ def cost(configuration: dict[str, bool | float | int | str | list[int]]) -> floa
 # type: Permutation
 # values: [1, 2, 3, 4, 5]
 
+if __name__ == '__main__':
+    # example configuration
+    configuration: dict[str, bool | float | int | str | list[int]] = {
+        "magic": False,
+        "mana": 3.0,
+        "level": 3,
+        "power": 4,
+        "creature": 'dwarf',
+        "order": [3, 1, 4, 2, 5],
+    }
 
-# example configuration  
-configuration: dict[str, bool | float | int | str | list[int]] = {
-    "magic": False,
-    "mana": 3.0, 
-    "level": 3,
-    "power": 4,
-    "creature": 'dwarf',
-    "order": [3, 1, 4, 2, 5],
-}
 
-
-# test evaluation  
-performance: float = cost(configuration)
-print(f"Performance: {performance}")
+    # test evaluation
+    performance: float = cost(configuration)
+    print(f"Performance: {performance}")
