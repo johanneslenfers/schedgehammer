@@ -1,0 +1,22 @@
+from cost import (cost)
+from kick_off_assignment.combined.tuner import GeneticTuner
+from param_types import SwitchParam, RealParam, IntegerParam, OrdinalParam, CategoricalParam, PermutationParam
+from problem import Problem
+
+
+def main():
+    problem = Problem({
+        "magic": SwitchParam(),
+        "mana": RealParam(0, 10),
+        "level": IntegerParam(1, 100),
+        "power": OrdinalParam([1, 2, 4, 8, 16]),
+        "creature": CategoricalParam(['dwarf', 'halfling', 'gold_golem', 'mage', 'naga', 'genie', 'dragon_golem', 'titan']),
+        "order": PermutationParam(5),
+    }, cost_function=lambda x: -cost(x))  # Make minimization problem.
+
+    config, score = GeneticTuner(problem, 1000).tune()
+    print(config, score)
+
+
+if __name__ == "__main__":
+    main()

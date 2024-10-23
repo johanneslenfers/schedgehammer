@@ -1,19 +1,24 @@
+import math
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Callable
+from typing import Tuple, Dict
 
-from param_types import ParamValueTypes
+from param_types import ParamValue
+from problem import Problem
 
-from kick_off_assignment.combined.problem_config import ProblemConfig
+ParameterConfiguration = Dict[str, ParamValue]
 
-
-@dataclass
 class Tuner(ABC):
-    problem_config: ProblemConfig
-    cost_function: Callable[[dict[str, ParamValueTypes]], float]
-    time_budget: float
-    latest_score: float = None
+    problem: Problem
+
+    best_score: float = math.inf
+    best_config: ParameterConfiguration = None
+
+    budget_evaluations: int
+
+    def __init__(self, problem: Problem, budget_evaluations: int):  # TODO do we also want to use time budget?
+        self.problem = problem
+        self.budget_evaluations = budget_evaluations
 
     def log_state(self):
         print("\033[H\033[J", end="")
@@ -21,21 +26,17 @@ class Tuner(ABC):
             print(f">>> {name}:", param.val)
         print("Score:", self.latest_score)
 
-    def evaluate_config(self):
-        self.latest_score = self.cost_function(self.problem_config.to_dict())
-        return self.latest_score
+    def evaluate_config(self, config):
+        score = self.problem.cost_function(config)
+        if score < self.best_score:
+            self.best_score = score
+            self.best_config = config
+        return score
 
     @abstractmethod
-    def tune(self):
+    def tune(self) -> Tuple[Problem, float]:
         raise NotImplementedError
 
-
-class LocalSearchTuner(Tuner):
-    @abstractmethod
-    def make_iteration(self):
-        raise NotImplementedError
-
-    def tune(self) -> float:
-        start_time = time.time()
-        while time.time() - start_time < self.time_budget:
-            #TODO
+class GeneticTuner(Tuner):
+    def tune(self) -> Tuple[Problem, float]:
+            pass
