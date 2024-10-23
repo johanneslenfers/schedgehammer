@@ -1,5 +1,5 @@
-from cost import (cost)
-from kick_off_assignment.combined.tuner import GeneticTuner
+from cost import cost
+from genetic_tuner import GeneticTuner
 from param_types import SwitchParam, RealParam, IntegerParam, OrdinalParam, CategoricalParam, PermutationParam
 from problem import Problem
 

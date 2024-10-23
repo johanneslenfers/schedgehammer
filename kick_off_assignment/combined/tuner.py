@@ -36,7 +36,3 @@ class Tuner(ABC):
     @abstractmethod
     def tune(self) -> Tuple[Problem, float]:
         raise NotImplementedError
-
-class GeneticTuner(Tuner):
-    def tune(self) -> Tuple[Problem, float]:
-            pass
