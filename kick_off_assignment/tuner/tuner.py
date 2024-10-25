@@ -1,12 +1,13 @@
+import math
 import random
 from dataclasses import dataclass, field
 from typing import Callable
 
 from tuner.parameter import (
-    Parameter,
     CategoricalParameter,
     IntegerParameter,
     OrdinalParameter,
+    Parameter,
     PermutationParameter,
     RealParameter,
     SearchSpace,
@@ -39,7 +40,7 @@ def random_param_value(param: Parameter) -> ParamValue:
 class Tuner:
     search_space: SearchSpace
     cost_fn: Callable[[ConfigDict], float]
-    results: list[tuple[float, ConfigDict]] = field(default_factory=list)
+    results: list[tuple[float, ConfigDict, int]] = field(default_factory=list)
     budget: int = 10000
 
     def random_sampling(self) -> tuple[float, ConfigDict]:
@@ -60,10 +61,11 @@ class Tuner:
         reproduction_share: float = 0.3,
         crossover_prob: float = 0.5,
         mutation_prob: float = 0.1,
-    ) -> tuple[float, ConfigDict]:
-        population_size = int(self.budget / generations)
-        elitism_size = int(population_size * elitism_share)
-        reproduction_size = int(population_size * reproduction_share)
+    ) -> tuple[float, ConfigDict, int]:
+        population_size = math.ceil(self.budget / generations)
+        elitism_size = math.ceil(population_size * elitism_share)
+        reproduction_size = math.ceil(population_size * reproduction_share)
+        num_evaluations = 0
 
         # initial population
         population = []
@@ -72,8 +74,9 @@ class Tuner:
             for [name, param] in self.search_space.parameters.items():
                 ret[name] = random_param_value(param)
 
+            num_evaluations += 1
             cost = self.cost_fn(ret)
-            population.append((cost, ret))
+            population.append((cost, ret, num_evaluations))
 
         self.results.extend(population)
 
@@ -99,8 +102,9 @@ class Tuner:
                     if random.random() < mutation_prob:
                         child[k1] = random_param_value(self.search_space.parameters[k1])
 
+                num_evaluations += 1
                 cost = self.cost_fn(child)
-                new_population.append((cost, child))
+                new_population.append((cost, child, num_evaluations))
 
             population = new_population
             self.results.extend(population)

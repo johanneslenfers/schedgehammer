@@ -125,7 +125,9 @@ def cost(configuration: ConfigDict) -> float:
 # name: order
 # type: Permutation
 # values: [1, 2, 3, 4, 5]
-def main():
+
+
+def tune_tuner(configuration: ConfigDict) -> float:
     search_space = SearchSpace(
         {
             "magic": SwitchParameter(),
@@ -148,12 +150,34 @@ def main():
         }
     )
 
-    tuner = Tuner(search_space, lambda config: 100 - cost(config), budget=10000)
+    tuner = Tuner(search_space, lambda config: -cost(config), budget=10000)
 
-    # min, min_dict = tuner.random_sampling()
-    min, min_dict = tuner.genetic_algo()
+    tuner.genetic_algo(**configuration)
 
-    print(f"min: {100 - min}")
+    s = sorted(filter(lambda x: x[0] < -16.85, tuner.results), key=lambda x: x[2])
+    min = s[0][2] if s else 10000
+
+    return min
+
+
+def main():
+    max_budget = 10000
+
+    search_space = SearchSpace(
+        {
+            "generations": IntegerParameter(1, max_budget),
+            "elitism_share": RealParameter(0, 1),
+            "reproduction_share": RealParameter(0, 1),
+            "crossover_prob": RealParameter(0, 1),
+            "mutation_prob": RealParameter(0, 1),
+        }
+    )
+
+    tuner = Tuner(search_space, tune_tuner, budget=1000)
+
+    min, min_dict, _ = tuner.genetic_algo()
+
+    print(f"min: {min}")
     print(f"min dict: {min_dict}")
 
 
