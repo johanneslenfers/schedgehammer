@@ -1,7 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, TypeVar, List
+from typing import Generic, List, TypeVar
 
 ParamValue = bool | float | int | str | list[int]
 T = TypeVar("T", bound=ParamValue)
@@ -24,6 +24,7 @@ class SwitchParam(Param[bool]):
         else:
             return False
 
+
 @dataclass
 class RealParam(Param[float]):
     min_val: float
@@ -42,7 +43,9 @@ class IntegerParam(Param[int]):
         return random.randint(self.min_val, self.max_val)
 
 
-OrdinalParamType = int|str
+OrdinalParamType = int | str
+
+
 @dataclass
 class OrdinalParam(Param[OrdinalParamType]):
     values: List[OrdinalParamType]
@@ -61,12 +64,12 @@ class CategoricalParam(Param[str]):
 
 @dataclass
 class PermutationParam(Param[list[int]]):
-    size: int
+    values: List[int]
 
     def choose_random(self):
-        perm = list(range(1, self.size + 1))  # Start with 1?
-        random.shuffle(perm)
-        return perm
+        tmp = self.values.copy()
+        random.shuffle(tmp)
+        return tmp
 
 
 TYPE_MAP = {
