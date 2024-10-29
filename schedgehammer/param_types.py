@@ -1,7 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, List, TypeVar
+from typing import Generic, TypeVar
 
 ParamValue = bool | float | int | str | list[int]
 T = TypeVar("T", bound=ParamValue)
@@ -9,7 +9,6 @@ T = TypeVar("T", bound=ParamValue)
 
 @dataclass
 class Param(ABC, Generic[T]):
-    # name: str  # Removed for now, see problem.py .
 
     @abstractmethod
     def choose_random(self) -> T:
@@ -48,7 +47,7 @@ OrdinalParamType = int | str
 
 @dataclass
 class OrdinalParam(Param[OrdinalParamType]):
-    values: List[OrdinalParamType]
+    values: list[OrdinalParamType]
 
     def choose_random(self) -> OrdinalParamType:
         return random.choice(self.values)
@@ -56,7 +55,7 @@ class OrdinalParam(Param[OrdinalParamType]):
 
 @dataclass
 class CategoricalParam(Param[str]):
-    values: List[str]
+    values: list[str]
 
     def choose_random(self) -> str:
         return random.choice(self.values)
@@ -64,9 +63,9 @@ class CategoricalParam(Param[str]):
 
 @dataclass
 class PermutationParam(Param[list[int]]):
-    values: List[int]
+    values: list[int]
 
-    def choose_random(self):
+    def choose_random(self) -> list[int]:
         tmp = self.values.copy()
         random.shuffle(tmp)
         return tmp

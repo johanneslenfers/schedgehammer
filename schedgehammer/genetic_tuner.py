@@ -1,8 +1,7 @@
 import random
 from typing import Tuple
 
-from problem import Problem
-from tuner import Tuner, ParameterConfiguration
+from schedgehammer.tuner import Tuner, ParameterConfiguration
 
 
 class GeneticTuner(Tuner):
