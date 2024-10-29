@@ -2,8 +2,8 @@ import math
 from abc import ABC, abstractmethod
 from typing import Tuple, Dict
 
-from param_types import ParamValue
-from problem import Problem
+from schedgehammer.param_types import ParamValue
+from schedgehammer.problem import Problem
 
 ParameterConfiguration = Dict[str, ParamValue]
 

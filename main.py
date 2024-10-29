@@ -1,6 +1,6 @@
-from cost import cost
-from genetic_tuner import GeneticTuner
-from param_types import (
+from schedgehammer.cost import cost
+from schedgehammer.genetic_tuner import GeneticTuner
+from schedgehammer.param_types import (
     SwitchParam,
     RealParam,
     IntegerParam,
@@ -8,7 +8,7 @@ from param_types import (
     CategoricalParam,
     PermutationParam,
 )
-from problem import Problem
+from schedgehammer.problem import Problem
 
 
 def main():
