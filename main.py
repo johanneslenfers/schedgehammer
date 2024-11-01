@@ -9,6 +9,7 @@ from schedgehammer.param_types import (
     PermutationParam,
 )
 from schedgehammer.problem import Problem
+from schedgehammer.tuner import EvalBudget, TimeBudget
 
 
 def main():
@@ -35,7 +36,9 @@ def main():
         cost_function=lambda x: -cost(x),
     )  # Make minimization problem.
 
-    config, score = GeneticTuner(problem, 100000).tune()
+    budget = EvalBudget(10000)
+    # budget = TimeBudget(2.5)
+    config, score = GeneticTuner(problem, budget).tune()
 
 
 if __name__ == "__main__":
