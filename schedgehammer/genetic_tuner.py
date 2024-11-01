@@ -7,13 +7,12 @@ from schedgehammer.tuner import Tuner, ParameterConfiguration
 class GeneticTuner(Tuner):
     def tune(
         self,
-        generations: int = 100,
+        population_size: int = 100,
         elitism_share: float = 0.1,
         reproduction_share: float = 0.3,
         crossover_prob: float = 0.5,
         mutation_prob: float = 0.1,
     ) -> Tuple[ParameterConfiguration, float]:
-        population_size = int(self.budget_evaluations / generations)
         elitism_size = int(population_size * elitism_share)
         reproduction_size = int(population_size * reproduction_share)
 
@@ -27,7 +26,7 @@ class GeneticTuner(Tuner):
             cost = self.evaluate_config(ret)
             population.append((ret, cost))
 
-        for i in range(generations - 1):
+        while self.budget.in_budget():
             population = sorted(population, key=lambda x: x[1])
             # keep best performing configs
             new_population = population[:elitism_size]
