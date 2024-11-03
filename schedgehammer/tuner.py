@@ -16,6 +16,7 @@ class Budget(ABC):
     def in_budget(self, tuner) -> bool:
         pass
 
+
 @dataclass
 class EvalBudget(Budget):
     max_evaluations: int
@@ -34,16 +35,16 @@ class TimeBudget(Budget):
 
 class Tuner(ABC):
     problem: Problem
-    budget: Budget
+    budgets: list[Budget]
     num_evaluations: int = 0
     start_time: datetime = datetime.now()
     record_of_evaluations: list[EvaluationResult] = []
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
 
-    def __init__(self, problem: Problem, budget: Budget):
+    def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem
-        self.budget = budget
+        self.budgets = budgets
 
     def log_state(self):
         print("\033[H\033[J", end="")
@@ -54,7 +55,12 @@ class Tuner(ABC):
     def evaluate_config(self, config: ParameterConfiguration) -> float:
         score = self.problem.cost_function(config)
         self.record_of_evaluations.append(
-            EvaluationResult(score, list(config.values()), self.num_evaluations, datetime.now() - self.start_time)
+            EvaluationResult(
+                score,
+                list(config.values()),
+                self.num_evaluations,
+                datetime.now() - self.start_time,
+            )
         )
         self.num_evaluations += 1
 
@@ -66,6 +72,9 @@ class Tuner(ABC):
 
     def create_result(self):
         return TuningResult(self.problem.params, self.record_of_evaluations)
+
+    def in_budget(self) -> bool:
+        return all([b.in_budget(self) for b in self.budgets])
 
     @abstractmethod
     def tune(self) -> TuningResult:
