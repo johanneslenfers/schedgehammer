@@ -36,15 +36,16 @@ class TimeBudget(Budget):
 class Tuner(ABC):
     problem: Problem
     budgets: list[Budget]
+    record_of_evaluations: list[EvaluationResult]
     num_evaluations: int = 0
     start_time: datetime = datetime.now()
-    record_of_evaluations: list[EvaluationResult] = []
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
 
     def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem
         self.budgets = budgets
+        self.record_of_evaluations = []
 
     def log_state(self):
         print("\033[H\033[J", end="")
