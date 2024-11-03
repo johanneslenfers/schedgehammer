@@ -2,45 +2,42 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
+from schedgehammer.result import EvaluationResult, TuningResult
 
 ParameterConfiguration = Dict[str, ParamValue]
 
 
 class Budget(ABC):
     @abstractmethod
-    def in_budget(self) -> bool:
+    def in_budget(self, tuner) -> bool:
         pass
-
 
 @dataclass
 class EvalBudget(Budget):
     max_evaluations: int
-    num_evaluations: int = 0
 
-    def in_budget(self) -> bool:
-        return self.num_evaluations <= self.max_evaluations
+    def in_budget(self, tuner) -> bool:
+        return tuner.num_evaluations <= self.max_evaluations
 
 
 @dataclass
 class TimeBudget(Budget):
     seconds: float
-    started: Optional[datetime] = None
 
-    def in_budget(self) -> bool:
-        if self.started is None:
-            self.started = datetime.now()
-            return True
-        else:
-            return (datetime.now() - self.started).total_seconds() <= self.seconds
+    def in_budget(self, tuner) -> bool:
+        return (datetime.now() - tuner.start_time).total_seconds() <= self.seconds
 
 
 class Tuner(ABC):
     problem: Problem
     budget: Budget
+    num_evaluations: int = 0
+    start_time: datetime = datetime.now()
+    record_of_evaluations: list[EvaluationResult] = []
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
 
@@ -54,17 +51,22 @@ class Tuner(ABC):
             print(f">>> {name}:", value)
         print("Score:", self.best_score)
 
-    def evaluate_config(self, config) -> float:
+    def evaluate_config(self, config: ParameterConfiguration) -> float:
         score = self.problem.cost_function(config)
-
-        if isinstance(self.budget, EvalBudget):
-            self.budget.num_evaluations += 1
+        self.record_of_evaluations.append(
+            EvaluationResult(score, list(config.values()), self.num_evaluations, datetime.now() - self.start_time)
+        )
+        self.num_evaluations += 1
 
         if score < self.best_score:
             self.best_score = score
             self.best_config = config
+
         return score
 
+    def create_result(self):
+        return TuningResult(self.problem.params, self.record_of_evaluations)
+
     @abstractmethod
-    def tune(self) -> Tuple[ParameterConfiguration, float]:
+    def tune(self) -> TuningResult:
         raise NotImplementedError
