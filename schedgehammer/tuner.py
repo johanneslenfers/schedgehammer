@@ -37,8 +37,8 @@ class Tuner(ABC):
     problem: Problem
     budgets: list[Budget]
     record_of_evaluations: list[EvaluationResult]
+    start_time: datetime
     num_evaluations: int = 0
-    start_time: datetime = datetime.now()
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
 
@@ -46,6 +46,7 @@ class Tuner(ABC):
         self.problem = problem
         self.budgets = budgets
         self.record_of_evaluations = []
+        self.start_time = datetime.now()
 
     def log_state(self):
         print("\033[H\033[J", end="")
