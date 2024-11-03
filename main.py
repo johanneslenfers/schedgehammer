@@ -11,7 +11,6 @@ from schedgehammer.param_types import (
 from schedgehammer.problem import Problem
 from schedgehammer.tuner import EvalBudget, TimeBudget
 
-
 def main():
     problem = Problem(
         {
@@ -38,7 +37,9 @@ def main():
 
     budget = EvalBudget(10000)
     # budget = TimeBudget(2.5)
-    config, score = GeneticTuner(problem, budget).tune()
+    result = GeneticTuner(problem, budget).tune()
+    result.generate_csv()
+    result.generate_plot()
 
 
 if __name__ == "__main__":
