@@ -1,6 +1,7 @@
 import random
 from typing import Tuple
 
+from schedgehammer.result import TuningResult
 from schedgehammer.tuner import Tuner, ParameterConfiguration
 
 
@@ -12,7 +13,7 @@ class GeneticTuner(Tuner):
         reproduction_share: float = 0.3,
         crossover_prob: float = 0.5,
         mutation_prob: float = 0.1,
-    ) -> Tuple[ParameterConfiguration, float]:
+    ) -> TuningResult:
         elitism_size = int(population_size * elitism_share)
         reproduction_size = int(population_size * reproduction_share)
 
@@ -26,7 +27,7 @@ class GeneticTuner(Tuner):
             cost = self.evaluate_config(ret)
             population.append((ret, cost))
 
-        while self.budget.in_budget():
+        while self.budget.in_budget(self):
             population = sorted(population, key=lambda x: x[1])
             # keep best performing configs
             new_population = population[:elitism_size]
@@ -54,4 +55,4 @@ class GeneticTuner(Tuner):
             population = new_population
             self.log_state()
 
-        return population[0]
+        return self.create_result()
