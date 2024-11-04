@@ -2,7 +2,7 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Tuple
+from typing import Callable, Dict, Tuple, Optional
 
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
@@ -41,12 +41,19 @@ class Tuner(ABC):
     num_evaluations: int = 0
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
+    score_callback: Optional[Callable[[ParameterConfiguration, float], None]]
 
-    def __init__(self, problem: Problem, budgets: list[Budget]):
+    def __init__(
+        self,
+        problem: Problem,
+        budgets: list[Budget],
+        score_callback: Optional[Callable[[ParameterConfiguration, float], None]] = None,
+    ):
         self.problem = problem
         self.budgets = budgets
         self.record_of_evaluations = []
         self.start_time = datetime.now()
+        self.score_callback = score_callback
 
     def log_state(self):
         print("\033[H\033[J", end="")
@@ -55,7 +62,16 @@ class Tuner(ABC):
         print("Score:", self.best_score)
 
     def evaluate_config(self, config: ParameterConfiguration) -> float:
-        score = self.problem.cost_function(config)
+        if self.problem.cost_function:
+            score = self.problem.cost_function(config)
+        else:
+            for name, val in config.items():
+                if type(val) is tuple:
+                    config[name] = str(val)
+            score = self.problem.study.query(config, self.problem.fidelity_params)[
+                "compute_time"
+            ]
+
         self.record_of_evaluations.append(
             EvaluationResult(
                 score,
@@ -69,7 +85,8 @@ class Tuner(ABC):
         if score < self.best_score:
             self.best_score = score
             self.best_config = config
-
+        if self.score_callback:
+            self.score_callback(config, self.best_score)
         return score
 
     def create_result(self):
