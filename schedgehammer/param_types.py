@@ -9,7 +9,6 @@ T = TypeVar("T", bound=ParamValue)
 
 @dataclass
 class Param(ABC, Generic[T]):
-
     @abstractmethod
     def choose_random(self) -> T:
         raise NotImplementedError
@@ -42,6 +41,16 @@ class IntegerParam(Param[int]):
         return random.randint(self.min_val, self.max_val)
 
 
+@dataclass
+class ExpIntParam(Param[int]):
+    base: int
+    min_exp: int
+    max_exp: int
+
+    def choose_random(self) -> int:
+        return self.base ** random.randint(self.min_exp, self.max_exp)
+
+
 OrdinalParamType = int | str
 
 
@@ -66,9 +75,9 @@ class PermutationParam(Param[list[int]]):
     values: list[int]
 
     def choose_random(self) -> list[int]:
-        tmp = self.values.copy()
+        tmp = list(self.values)
         random.shuffle(tmp)
-        return tmp
+        return tuple(tmp)
 
 
 TYPE_MAP = {
