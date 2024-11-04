@@ -54,7 +54,7 @@ class Problem:
                     values=param.categories,
                 )
             elif type(param) is PermutationInteropt:
-                params[param.name] = PermutationParam(values=param.default)
+                params[param.name] = PermutationParam(values=list(param.default))
             elif type(param) is BooleanInteropt:
                 params[param.name] = SwitchParam()
             elif type(param) is IntegerInteropt:
