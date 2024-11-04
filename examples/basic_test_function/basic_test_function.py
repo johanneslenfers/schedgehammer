@@ -1,5 +1,52 @@
+# Only needed since this is in the same repo as schedgehammer.
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
+#################################################################
+
 import numpy as np
 
+from schedgehammer.genetic_tuner import GeneticTuner
+from schedgehammer.param_types import (
+    SwitchParam,
+    RealParam,
+    IntegerParam,
+    OrdinalParam,
+    CategoricalParam,
+    PermutationParam,
+)
+from schedgehammer.problem import Problem
+from schedgehammer.tuner import EvalBudget, TimeBudget
+
+
+def main():
+    problem = Problem(
+        {
+            "magic": SwitchParam(),
+            "mana": RealParam(0, 10),
+            "level": IntegerParam(1, 100),
+            "power": OrdinalParam([1, 2, 4, 8, 16]),
+            "creature": CategoricalParam(
+                [
+                    "dwarf",
+                    "halfling",
+                    "gold_golem",
+                    "mage",
+                    "naga",
+                    "genie",
+                    "dragon_golem",
+                    "titan",
+                ]
+            ),
+            "order": PermutationParam([1, 2, 3, 4, 5]),
+        },
+        cost_function=lambda x: -cost(x),
+    )  # Make minimization problem.
+
+    be = EvalBudget(10000)
+    bt = TimeBudget(1.5)
+    result = GeneticTuner(problem, [be, bt]).tune()
+    result.generate_csv("results/evaluations.csv")
+    result.generate_plot("results/plot.png")
 
 # a synthetic cost function
 def cost(configuration: dict[str, bool | float | int | str | list[int]]) -> float:
@@ -83,28 +130,6 @@ def cost(configuration: dict[str, bool | float | int | str | list[int]]) -> floa
     return performance_value
 
 
-# Tuning Parameters 
 
-# name: magic 
-# type: switch
-# values: true, false
-
-# name: mana
-# type: real
-# values: 0-10
-
-# name: level
-# type: integer
-# values: 1 - 100 
-
-# name: power
-# type: ordinal
-# values: [1, 2, 4, 8, 16]
-
-# name: creature 
-# type: categorical
-# values: ['dwarf', 'halfling', 'gold_golem', 'mage', 'naga', 'genie', 'dragon_golem', 'titan']
-
-# name: order 
-# type: Permutation
-# values: [1, 2, 3, 4, 5]
+if __name__ == "__main__":
+    main()

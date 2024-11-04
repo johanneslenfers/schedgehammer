@@ -3,6 +3,7 @@ import math
 from dataclasses import dataclass
 from datetime import timedelta
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from schedgehammer.param_types import ParamValue, Param
 
@@ -19,6 +20,7 @@ class TuningResult:
     record_of_evaluations: list[EvaluationResult]
 
     def generate_csv(self, name="evaluations.csv", only_improvements=False):
+        Path(name).parent.mkdir(parents=True, exist_ok=True)
         with open(name, 'w', newline='') as file:
             writer = csv.writer(file)
             # Header
