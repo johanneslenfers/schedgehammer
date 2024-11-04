@@ -1,3 +1,9 @@
+# Only needed since this is in the same repo as schedgehammer.
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+##############################################################
+
+
 import json
 import os
 from collections import defaultdict
