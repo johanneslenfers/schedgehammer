@@ -27,7 +27,7 @@ class GeneticTuner(Tuner):
             cost = self.evaluate_config(ret)
             population.append((ret, cost))
 
-        while self.budget.in_budget(self):
+        while self.in_budget():
             population = sorted(population, key=lambda x: x[1])
             # keep best performing configs
             new_population = population[:elitism_size]

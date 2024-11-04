@@ -11,6 +11,7 @@ from schedgehammer.param_types import (
 from schedgehammer.problem import Problem
 from schedgehammer.tuner import EvalBudget, TimeBudget
 
+
 def main():
     problem = Problem(
         {
@@ -35,9 +36,9 @@ def main():
         cost_function=lambda x: -cost(x),
     )  # Make minimization problem.
 
-    budget = EvalBudget(10000)
-    # budget = TimeBudget(2.5)
-    result = GeneticTuner(problem, budget).tune()
+    be = EvalBudget(10000)
+    bt = TimeBudget(1.5)
+    result = GeneticTuner(problem, [be, bt]).tune()
     result.generate_csv()
     result.generate_plot()
 
