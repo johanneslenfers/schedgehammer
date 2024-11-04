@@ -9,10 +9,10 @@ def plot_results():
         results = json.loads(f.read())
 
     for benchmark_name, scores in results.items():
-        if benchmark_name == "total_time":
+        if benchmark_name == "total_time_schedgehammer":
             continue
         plt.plot(scores, label=benchmark_name)
-    plt.plot(results["total_time"], label="total_time")
+    plt.plot(results["total_time_schedgehammer"], label="total_time")
     plt.xscale("log")
     plt.yscale("log")
     plt.legend()

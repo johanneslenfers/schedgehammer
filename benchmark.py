@@ -7,7 +7,7 @@ from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.problem import Problem
 from schedgehammer.tuner import EvalBudget
 
-ITERATIONS = 1000
+ITERATIONS = 3000
 BENCHMARKS = [
     "spmm",
     "spmv",
@@ -33,10 +33,13 @@ if __name__ == "__main__":
         _ = GeneticTuner(problem, [EvalBudget(ITERATIONS)], score_callback).tune()
     min_benchmark_iterations = min(
         [len(results[benchmark_name]) for benchmark_name in BENCHMARKS]
-    )  # Hotfix for genetic tuner running only 900 iterations
+    )  # Hotfix for genetic tuner running only 90% of stated iterations
     results["total_time_schedgehammer"] = [0] * min_benchmark_iterations
     for benchmark_name in BENCHMARKS:
         for iteration in range(min_benchmark_iterations):
             results["total_time_schedgehammer"][iteration] += results[benchmark_name][
                 iteration
             ]
+
+    with open(os.path.join("results", "results.json"), "w") as f:
+        f.write(json.dumps(results))
