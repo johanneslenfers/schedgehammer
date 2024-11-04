@@ -75,9 +75,9 @@ class PermutationParam(Param[list[int]]):
     values: list[int]
 
     def choose_random(self) -> list[int]:
-        tmp = list(self.values)
+        tmp = self.values.copy()
         random.shuffle(tmp)
-        return tuple(tmp)
+        return tmp
 
 
 TYPE_MAP = {

@@ -66,7 +66,7 @@ class Tuner(ABC):
             score = self.problem.cost_function(config)
         else:
             for name, val in config.items():
-                if type(val) is tuple:
+                if type(val) is list:
                     config[name] = str(val)
             score = self.problem.study.query(config, self.problem.fidelity_params)[
                 "compute_time"
