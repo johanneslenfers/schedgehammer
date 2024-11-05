@@ -1,3 +1,4 @@
+
 import numpy as np
 
 # a synthetic cost function 
