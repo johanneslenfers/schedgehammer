@@ -1,0 +1,31 @@
+params:
+        - name: magic
+          type: switch
+
+        - name: mana
+          type: real
+          val_range: [0,1]
+
+        - name: level
+          type: integer
+          val_range: [0,100]
+
+        - name: power
+          type: ordinal
+          val_range: [1,128] 
+
+        - name: creature
+          type: categorical
+          val_range: [dwarf, halfling, gold_golem, mage, naga,genie, dragon_golem, titan]
+
+
+        - name: order
+          type: permutation
+          val_range: [[1,1,1],[5,5,5]]
+
+independent_groups:
+        - [magic, creature, mana]
+        - [level]
+        - [power]
+        - [order]
+        
