@@ -44,7 +44,7 @@ def main():
 
     be = EvalBudget(10000)
     bt = TimeBudget(1.5)
-    result = GeneticTuner(problem, [be, bt]).tune()
+    result = GeneticTuner().tune(problem, [be, bt])
     result.generate_csv("results/evaluations.csv")
     result.generate_plot("results/plot.png")
 

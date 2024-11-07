@@ -49,3 +49,13 @@ class TuningResult:
         plt.xlabel('function evaluations')
         plt.ylabel('cost')
         plt.savefig(name)
+
+    def best_score_list(self) -> list[float]:
+        l = []
+        best = math.inf
+        for record in self.record_of_evaluations:
+            if record.score < best:
+                best = record.score
+            l.append(best)
+        return l
+

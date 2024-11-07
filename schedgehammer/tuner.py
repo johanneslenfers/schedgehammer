@@ -22,7 +22,7 @@ class EvalBudget(Budget):
     max_evaluations: int
 
     def in_budget(self, tuner) -> bool:
-        return tuner.num_evaluations <= self.max_evaluations
+        return tuner.current_evaluation <= self.max_evaluations
 
 
 @dataclass
@@ -33,60 +33,38 @@ class TimeBudget(Budget):
         return (datetime.now() - tuner.start_time).total_seconds() <= self.seconds
 
 
-class Tuner(ABC):
+class TuningAttempt:
     problem: Problem
     budgets: list[Budget]
     record_of_evaluations: list[EvaluationResult]
     start_time: datetime
-    num_evaluations: int = 0
+    current_evaluation: int = 0
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
-    score_callback: Optional[Callable[[ParameterConfiguration, float], None]]
 
-    def __init__(
-        self,
-        problem: Problem,
-        budgets: list[Budget],
-        score_callback: Optional[Callable[[ParameterConfiguration, float], None]] = None,
-    ):
+    def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem
         self.budgets = budgets
         self.record_of_evaluations = []
         self.start_time = datetime.now()
-        self.score_callback = score_callback
-
-    def log_state(self):
-        print("\033[H\033[J", end="")
-        for name, value in self.best_config.items():
-            print(f">>> {name}:", value)
-        print("Score:", self.best_score)
 
     def evaluate_config(self, config: ParameterConfiguration) -> float:
-        if self.problem.cost_function:
-            score = self.problem.cost_function(config)
-        else:
-            for name, val in config.items():
-                if type(val) is list:
-                    config[name] = str(val)
-            score = self.problem.study.query(config, self.problem.fidelity_params)[
-                "compute_time"
-            ]
+        score = self.problem.cost_function(config)
 
         self.record_of_evaluations.append(
             EvaluationResult(
                 score,
                 list(config.values()),
-                self.num_evaluations,
+                self.current_evaluation,
                 datetime.now() - self.start_time,
             )
         )
-        self.num_evaluations += 1
+        self.current_evaluation += 1
 
         if score < self.best_score:
             self.best_score = score
             self.best_config = config
-        if self.score_callback:
-            self.score_callback(config, self.best_score)
+
         return score
 
     def create_result(self):
@@ -95,6 +73,20 @@ class Tuner(ABC):
     def in_budget(self) -> bool:
         return all([b.in_budget(self) for b in self.budgets])
 
+    def log_state(self):
+        print("\033[H\033[J", end="")
+        for name, value in self.best_config.items():
+            print(f">>> {name}:", value)
+        print("Score:", self.best_score)
+
+
+class Tuner(ABC):
+
+    def tune(self, problem: Problem, budgets: list[Budget]) -> TuningResult:
+        attempt = TuningAttempt(problem, budgets)
+        self.do_tuning(attempt)
+        return attempt.create_result()
+
     @abstractmethod
-    def tune(self) -> TuningResult:
+    def do_tuning(self, tuning_attempt: TuningAttempt):
         raise NotImplementedError
