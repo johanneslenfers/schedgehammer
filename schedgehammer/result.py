@@ -60,4 +60,3 @@ class TuningResult:
                 best = record.score
             l.append(best)
         return l
-

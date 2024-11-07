@@ -48,8 +48,10 @@ class GeneticTuner(Tuner):
                     if random.random() < self.mutation_prob:
                         child[k1] = attempt.problem.params[k1].choose_random()
 
+                if not attempt.in_budget():
+                    return
+
                 cost = attempt.evaluate_config(child)
                 new_population.append((child, cost))
 
             population = new_population
-            attempt.log_state()

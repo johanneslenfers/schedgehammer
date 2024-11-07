@@ -56,6 +56,9 @@ class TuningAttempt:
         self.last_improvement_time = time.perf_counter()
 
     def evaluate_config(self, config: ParameterConfiguration) -> float:
+        if not self.in_budget():
+            raise Exception("Budget spent!")
+
         start = time.perf_counter()
         score = self.problem.cost_function(config)
         self.evaluation_cumulative_duration += time.perf_counter() - start

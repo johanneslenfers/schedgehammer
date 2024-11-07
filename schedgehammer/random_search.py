@@ -1,6 +1,8 @@
+from dataclasses import dataclass
+
 from schedgehammer.tuner import Tuner, TuningAttempt
 
-
+@dataclass
 class RandomSearch(Tuner):
 
     def do_tuning(self, tuning_attempt: TuningAttempt):
