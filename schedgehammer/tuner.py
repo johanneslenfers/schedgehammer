@@ -1,8 +1,8 @@
 import math
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Callable, Dict, Tuple, Optional
+from typing import Dict
 
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
@@ -30,33 +30,42 @@ class TimeBudget(Budget):
     seconds: float
 
     def in_budget(self, tuner) -> bool:
-        return (datetime.now() - tuner.start_time).total_seconds() <= self.seconds
+        return time.perf_counter() - tuner.start_time <= self.seconds
 
 
 class TuningAttempt:
     problem: Problem
     budgets: list[Budget]
     record_of_evaluations: list[EvaluationResult]
-    start_time: datetime
+    start_time: float
     current_evaluation: int = 0
+
+    last_improvement_evaluation: int = 0
+    last_improvement_time: float
+
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
+
+    evaluation_cumulative_duration: float = 0
 
     def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem
         self.budgets = budgets
         self.record_of_evaluations = []
-        self.start_time = datetime.now()
+        self.start_time = time.perf_counter()
+        self.last_improvement_time = time.perf_counter()
 
     def evaluate_config(self, config: ParameterConfiguration) -> float:
+        start = time.perf_counter()
         score = self.problem.cost_function(config)
+        self.evaluation_cumulative_duration += time.perf_counter() - start
 
         self.record_of_evaluations.append(
             EvaluationResult(
                 score,
                 list(config.values()),
                 self.current_evaluation,
-                datetime.now() - self.start_time,
+                time.perf_counter() - self.start_time,
             )
         )
         self.current_evaluation += 1
@@ -68,7 +77,14 @@ class TuningAttempt:
         return score
 
     def create_result(self):
-        return TuningResult(self.problem.params, self.record_of_evaluations)
+        complete_execution_time = time.perf_counter() - self.start_time
+        return TuningResult(
+            self.problem.params,
+            self.record_of_evaluations,
+            complete_execution_time,
+            complete_execution_time - self.evaluation_cumulative_duration,
+            self.evaluation_cumulative_duration
+        )
 
     def in_budget(self) -> bool:
         return all([b.in_budget(self) for b in self.budgets])

@@ -1,7 +1,6 @@
 import csv
 import math
 from dataclasses import dataclass
-from datetime import timedelta
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -12,12 +11,15 @@ class EvaluationResult:
     score: float
     config: list[ParamValue]
     num_evaluation: int
-    timestamp: timedelta
+    timestamp: float
 
 @dataclass
 class TuningResult:
     parameters: dict[str, Param]
     record_of_evaluations: list[EvaluationResult]
+    complete_execution_time: float
+    algorithm_execution_time: float
+    evaluation_execution_time: float
 
     def generate_csv(self, name="evaluations.csv", only_improvements=False):
         Path(name).parent.mkdir(parents=True, exist_ok=True)
@@ -29,7 +31,7 @@ class TuningResult:
             best_score = math.inf
             for record in self.record_of_evaluations:
                 if record.score < best_score or not only_improvements:
-                    writer.writerow([record.num_evaluation, record.score, record.timestamp.total_seconds()] +
+                    writer.writerow([record.num_evaluation, record.score, record.timestamp] +
                                     record.config)
                     best_score = record.score
 
