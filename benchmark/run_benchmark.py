@@ -11,7 +11,7 @@ from schedgehammer.random_search import RandomSearch
 from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.tuner import EvalBudget
 
-ITERATIONS = 1000
+ITERATIONS = 500
 BENCHMARKS = [
     "spmm",
     "spmv",
@@ -26,9 +26,14 @@ BENCHMARKS = [
 
 if __name__ == "__main__":
 
-    tuners = [GeneticTuner(), RandomSearch()]
+    tuners = {
+        "GeneticTuner with constraints": GeneticTuner(),
+        "RandomSearch with constraints": RandomSearch(),
+        "GeneticTuner without constraints": GeneticTuner(False),
+        "RandomSearch without constraints": RandomSearch(False),
+    }
 
     for benchmark_name in BENCHMARKS:
         study = cb.benchmark(benchmark_name)
         problem = problem_from_study(study)
-        benchmark(problem, [EvalBudget(ITERATIONS)], tuners, f'results/{benchmark_name}', 10, export_raw_data=True)
+        benchmark(problem, [EvalBudget(ITERATIONS)], tuners, f'results/{benchmark_name}', 100, export_raw_data=True)
