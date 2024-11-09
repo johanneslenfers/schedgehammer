@@ -1,5 +1,9 @@
 # Only needed since this is in the same repo as schedgehammer.
 import sys, os
+
+from schedgehammer.benchmark import benchmark
+from schedgehammer.random_search import RandomSearch
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 #################################################################
 
@@ -42,11 +46,10 @@ def main():
         cost_function=lambda x: -cost(x),
     )  # Make minimization problem.
 
-    be = EvalBudget(10000)
+    be = EvalBudget(1000)
     bt = TimeBudget(1.5)
-    result = GeneticTuner(problem, [be, bt]).tune()
-    result.generate_csv("results/evaluations.csv")
-    result.generate_plot("results/plot.png")
+    benchmark(problem, [be, bt], [GeneticTuner(), RandomSearch()], output_path='results/', repetitions=20, export_raw_data=True)
+
 
 # a synthetic cost function
 def cost(configuration: dict[str, bool | float | int | str | list[int]]) -> float:

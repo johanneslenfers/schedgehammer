@@ -1,8 +1,8 @@
 import math
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Callable, Dict, Tuple, Optional
+from typing import Dict
 
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
@@ -22,7 +22,7 @@ class EvalBudget(Budget):
     max_evaluations: int
 
     def in_budget(self, tuner) -> bool:
-        return tuner.num_evaluations <= self.max_evaluations
+        return tuner.current_evaluation <= self.max_evaluations
 
 
 @dataclass
@@ -30,30 +30,67 @@ class TimeBudget(Budget):
     seconds: float
 
     def in_budget(self, tuner) -> bool:
-        return (datetime.now() - tuner.start_time).total_seconds() <= self.seconds
+        return time.perf_counter() - tuner.start_time <= self.seconds
 
 
-class Tuner(ABC):
+class TuningAttempt:
     problem: Problem
     budgets: list[Budget]
     record_of_evaluations: list[EvaluationResult]
-    start_time: datetime
-    num_evaluations: int = 0
+    start_time: float
+    current_evaluation: int = 0
+
+    last_improvement_evaluation: int = 0
+    last_improvement_time: float
+
     best_score: float = math.inf
     best_config: ParameterConfiguration = None
-    score_callback: Optional[Callable[[ParameterConfiguration, float], None]]
 
-    def __init__(
-        self,
-        problem: Problem,
-        budgets: list[Budget],
-        score_callback: Optional[Callable[[ParameterConfiguration, float], None]] = None,
-    ):
+    evaluation_cumulative_duration: float = 0
+
+    def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem
         self.budgets = budgets
         self.record_of_evaluations = []
-        self.start_time = datetime.now()
-        self.score_callback = score_callback
+        self.start_time = time.perf_counter()
+        self.last_improvement_time = time.perf_counter()
+
+    def evaluate_config(self, config: ParameterConfiguration) -> float:
+        if not self.in_budget():
+            raise Exception("Budget spent!")
+
+        start = time.perf_counter()
+        score = self.problem.cost_function(config)
+        self.evaluation_cumulative_duration += time.perf_counter() - start
+
+        self.record_of_evaluations.append(
+            EvaluationResult(
+                score,
+                list(config.values()),
+                self.current_evaluation,
+                time.perf_counter() - self.start_time,
+            )
+        )
+        self.current_evaluation += 1
+
+        if score < self.best_score:
+            self.best_score = score
+            self.best_config = config
+
+        return score
+
+    def create_result(self):
+        complete_execution_time = time.perf_counter() - self.start_time
+        return TuningResult(
+            self.problem.params,
+            self.record_of_evaluations,
+            complete_execution_time,
+            complete_execution_time - self.evaluation_cumulative_duration,
+            self.evaluation_cumulative_duration
+        )
+
+    def in_budget(self) -> bool:
+        return all([b.in_budget(self) for b in self.budgets])
 
     def log_state(self):
         print("\033[H\033[J", end="")
@@ -61,40 +98,14 @@ class Tuner(ABC):
             print(f">>> {name}:", value)
         print("Score:", self.best_score)
 
-    def evaluate_config(self, config: ParameterConfiguration) -> float:
-        if self.problem.cost_function:
-            score = self.problem.cost_function(config)
-        else:
-            for name, val in config.items():
-                if type(val) is list:
-                    config[name] = str(val)
-            score = self.problem.study.query(config, self.problem.fidelity_params)[
-                "compute_time"
-            ]
 
-        self.record_of_evaluations.append(
-            EvaluationResult(
-                score,
-                list(config.values()),
-                self.num_evaluations,
-                datetime.now() - self.start_time,
-            )
-        )
-        self.num_evaluations += 1
+class Tuner(ABC):
 
-        if score < self.best_score:
-            self.best_score = score
-            self.best_config = config
-        if self.score_callback:
-            self.score_callback(config, self.best_score)
-        return score
-
-    def create_result(self):
-        return TuningResult(self.problem.params, self.record_of_evaluations)
-
-    def in_budget(self) -> bool:
-        return all([b.in_budget(self) for b in self.budgets])
+    def tune(self, problem: Problem, budgets: list[Budget]) -> TuningResult:
+        attempt = TuningAttempt(problem, budgets)
+        self.do_tuning(attempt)
+        return attempt.create_result()
 
     @abstractmethod
-    def tune(self) -> TuningResult:
+    def do_tuning(self, tuning_attempt: TuningAttempt):
         raise NotImplementedError
