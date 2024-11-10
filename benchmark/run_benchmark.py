@@ -1,7 +1,8 @@
 # Only needed since this is in the same repo as schedgehammer.
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 ##############################################################
 
 import catbench as cb
@@ -38,4 +39,11 @@ if __name__ == "__main__":
     for benchmark_name in BENCHMARKS:
         study = cb.benchmark(benchmark_name)
         problem = problem_from_study(study)
-        benchmark(problem, [EvalBudget(ITERATIONS)], tuners, f'results/{benchmark_name}', 10, export_raw_data=True)
+        benchmark(
+            problem,
+            [EvalBudget(ITERATIONS)],
+            tuners,
+            f"results/{benchmark_name}",
+            10,
+            export_raw_data=True,
+        )
