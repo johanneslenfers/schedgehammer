@@ -49,9 +49,7 @@ def problem_from_study(study: Study) -> Problem:
                 max_exp=math.log(param.bounds[1], param.base),
             )
         else:
-            raise ValueError(
-                f"Problem got unsupported parameter type: {type(param)}"
-            )
+            raise ValueError(f"Problem got unsupported parameter type: {type(param)}")
     fidelity_params = {}
     for fidelity_param in study.definition.search_space.fidelity_params:
         fidelity_params[fidelity_param.name] = fidelity_param.default
@@ -63,9 +61,13 @@ def problem_from_study(study: Study) -> Problem:
                 config[name] = str(val)
         return study.query(config, fidelity_params)["compute_time"]
 
+<<<<<<< HEAD
     return Problem(
         study.definition.name,
         params,
         interop_eval,
         [c.constraint for c in study.definition.search_space.constraints]
     )
+=======
+    return Problem(params, [], interop_eval)
+>>>>>>> 1f87f2d (allow usage in benchmark run, without constraints)

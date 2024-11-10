@@ -53,7 +53,7 @@ def main():
     )  # Make minimization problem.
 
     be = EvalBudget(1000)
-    bt = TimeBudget(1.5)
+    # bt = TimeBudget(1.5)
     benchmark(
         problem,
         [be, bt],

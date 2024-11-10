@@ -1,6 +1,6 @@
 from typing import Callable
 
-from schedgehammer.constraint import Constraint
+from schedgehammer.constraint import ConstraintParser
 from schedgehammer.param_types import Param, ParamValue
 from schedgehammer.constraints import Constraint, Solver
 
@@ -22,7 +22,7 @@ class Problem:
         self.name = name
         self.params = params
         self.cost_function = cost_function
-        self.constraints = [Constraint(s) for s in constraints]
+        self.constraints = [ConstraintParser.generate(s) for s in constraints]
 
     def get_solver(self) -> Solver:
         variables = {k: v.get_value_range() for k, v in self.params.items()}

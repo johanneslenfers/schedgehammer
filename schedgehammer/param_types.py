@@ -99,7 +99,8 @@ class ExpIntParam(Param[int]):
             return self.base**exp
 
     def get_value_range(self) -> int:
-        return [self.base**i for i in range(self.min_exp, self.max_exp)]
+        # TODO: gucken, wo die parameter nicht als int angelegt werden
+        return [self.base**i for i in range(int(self.min_exp), int(self.max_exp))]
 
 
 OrdinalParamType = int | str

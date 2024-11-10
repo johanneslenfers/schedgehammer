@@ -7,14 +7,16 @@ from antlr4.InputStream import InputStream
 from schedgehammer.param_types import ParamValue
 from schedgehammer.parsing.antlr.ConstraintLexer import ConstraintLexer
 from schedgehammer.parsing.antlr.ConstraintParser import ConstraintParser
-from schedgehammer.parsing.visitor import FindVariablesVisitor, EvaluatingVisitor, GeneratingVisitor
+from schedgehammer.parsing.visitor import (
+    FindVariablesVisitor,
+    EvaluatingVisitor,
+    GeneratingVisitor,
+)
 
-functions = {
-    'sqrt': math.sqrt
-}
+functions = {"sqrt": math.sqrt}
 
-class Constraint:
 
+class ConstraintParser:
     expression: ConstraintParser.ExpressionContext
     fun: Callable[[dict, dict], bool]
     dependencies: set[str]
@@ -32,6 +34,9 @@ class Constraint:
         self.fun = eval("lambda variables, functions: " + fun_body)
 
         self.dependencies = FindVariablesVisitor().visit(self.expression)
+
+    def generate(self):
+        return GeneratingVisitor().visit(self.expression)
 
     def evaluate(self, config: dict[str, ParamValue]):
         return self.fun(config, functions)
