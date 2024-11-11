@@ -57,6 +57,7 @@ def problem_from_study(study: Study) -> Problem:
         fidelity_params[fidelity_param.name] = fidelity_param.default
 
     def interop_eval(config):
+        config = config.copy()
         for name, val in config.items():
             if type(val) is list:
                 config[name] = str(val)
