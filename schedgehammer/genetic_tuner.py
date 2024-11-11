@@ -12,6 +12,7 @@ class GeneticTuner(Tuner):
     reproduction_share: float = 0.3
     crossover_prob: float = 0.5
     mutation_prob: float = 0.1
+    local_mutation: bool = False
 
     def do_tuning(self, attempt: TuningAttempt):
         elitism_size = int(self.population_size * self.elitism_share)
@@ -52,7 +53,10 @@ class GeneticTuner(Tuner):
                             child[k1] = v2
 
                         if random.random() < self.mutation_prob:
-                            child[k1] = attempt.problem.params[k1].choose_random()
+                            if self.local_mutation:
+                                child[k1] = attempt.problem.params[k1].choose_random(v1)
+                            else:
+                                child[k1] = attempt.problem.params[k1].choose_random()
 
                     if not self.check_constraints or attempt.fulfills_all_constraints(child):
                         break
