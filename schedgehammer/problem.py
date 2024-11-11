@@ -14,8 +14,8 @@ class Problem:
                  name: str,
                  params: dict[str, Param],
                  cost_function: Callable[[dict[str, ParamValue]], float],
-                 constraints: list[str] = []):
+                 constraints: list[tuple[str, list[str]]] = []):
         self.name = name
         self.params = params
         self.cost_function = cost_function
-        self.constraints = [Constraint(s) for s in constraints]
+        self.constraints = [Constraint(c, d) for (c, d) in constraints]

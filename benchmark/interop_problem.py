@@ -66,5 +66,5 @@ def problem_from_study(study: Study) -> Problem:
         study.definition.name,
         params,
         interop_eval,
-        [c.constraint for c in study.definition.search_space.constraints]
+        [(c.constraint, c.dependent_params) for c in study.definition.search_space.constraints]
     )

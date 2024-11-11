@@ -36,4 +36,4 @@ if __name__ == "__main__":
     for benchmark_name in BENCHMARKS:
         study = cb.benchmark(benchmark_name)
         problem = problem_from_study(study)
-        benchmark(problem, [EvalBudget(ITERATIONS)], tuners, f'results/{benchmark_name}', 100, export_raw_data=True)
+        benchmark(problem, [EvalBudget(ITERATIONS)], tuners, f'results/{benchmark_name}', 1, export_raw_data=True)
