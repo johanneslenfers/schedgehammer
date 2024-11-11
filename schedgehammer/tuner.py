@@ -34,26 +34,17 @@ class TimeBudget(Budget):
 
 
 class TuningAttempt:
-    problem: Problem
-    budgets: list[Budget]
-    record_of_evaluations: list[EvaluationResult]
-    start_time: float
-    current_evaluation: int = 0
-
-    last_improvement_evaluation: int = 0
-    last_improvement_time: float
-
-    best_score: float = math.inf
-    best_config: ParameterConfiguration = None
-
-    evaluation_cumulative_duration: float = 0
-
     def __init__(self, problem: Problem, budgets: list[Budget]):
-        self.problem = problem
-        self.budgets = budgets
-        self.record_of_evaluations = []
-        self.start_time = time.perf_counter()
-        self.last_improvement_time = time.perf_counter()
+        self.problem: Problem = problem
+        self.budgets: list[Budget] = budgets
+        self.record_of_evaluations: list[EvaluationResult] = []
+        self.start_time: float = time.perf_counter()
+        self.last_improvement_time: float = time.perf_counter()
+        self.current_evaluation: int = 0
+        self.last_improvement_evaluation: int = 0
+        self.best_score: float = math.inf
+        self.best_config: ParameterConfiguration = None
+        self.evaluation_cumulative_duration: float = 0
 
     def evaluate_config(self, config: ParameterConfiguration) -> float:
         if not self.in_budget():
@@ -86,7 +77,7 @@ class TuningAttempt:
             self.record_of_evaluations,
             complete_execution_time,
             complete_execution_time - self.evaluation_cumulative_duration,
-            self.evaluation_cumulative_duration
+            self.evaluation_cumulative_duration,
         )
 
     def in_budget(self) -> bool:
@@ -100,7 +91,6 @@ class TuningAttempt:
 
 
 class Tuner(ABC):
-
     def tune(self, problem: Problem, budgets: list[Budget]) -> TuningResult:
         attempt = TuningAttempt(problem, budgets)
         self.do_tuning(attempt)
