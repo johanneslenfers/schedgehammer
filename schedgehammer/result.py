@@ -1,10 +1,12 @@
 import csv
 import math
 from dataclasses import dataclass
-import matplotlib.pyplot as plt
 from pathlib import Path
 
-from schedgehammer.param_types import ParamValue, Param
+import matplotlib.pyplot as plt
+
+from schedgehammer.param_types import Param, ParamValue
+
 
 @dataclass
 class EvaluationResult:
@@ -12,6 +14,7 @@ class EvaluationResult:
     config: list[ParamValue]
     num_evaluation: int
     timestamp: float
+
 
 @dataclass
 class TuningResult:
@@ -23,16 +26,20 @@ class TuningResult:
 
     def generate_csv(self, name="evaluations.csv", only_improvements=False):
         Path(name).parent.mkdir(parents=True, exist_ok=True)
-        with open(name, 'w', newline='') as file:
+        with open(name, "w", newline="") as file:
             writer = csv.writer(file)
             # Header
-            writer.writerow(["num_evaluation", "score", "timestamp"] + list(self.parameters.keys()))
+            writer.writerow(
+                ["num_evaluation", "score", "timestamp"] + list(self.parameters.keys())
+            )
             # Body
             best_score = math.inf
             for record in self.record_of_evaluations:
                 if record.score < best_score or not only_improvements:
-                    writer.writerow([record.num_evaluation, record.score, record.timestamp] +
-                                    record.config)
+                    writer.writerow(
+                        [record.num_evaluation, record.score, record.timestamp]
+                        + record.config
+                    )
                     best_score = record.score
 
     def generate_plot(self, name="plot.png"):
@@ -48,8 +55,8 @@ class TuningResult:
 
         plt.plot(xs, ys, label=name)
 
-        plt.xlabel('function evaluations')
-        plt.ylabel('cost')
+        plt.xlabel("function evaluations")
+        plt.ylabel("cost")
         plt.savefig(name)
 
     def best_score_list(self) -> list[float]:
