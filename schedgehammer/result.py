@@ -3,9 +3,8 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-
 from schedgehammer.param_types import Param, ParamValue
+from schedgehammer.problem import Problem
 
 
 @dataclass
@@ -41,23 +40,6 @@ class TuningResult:
                         + record.config
                     )
                     best_score = record.score
-
-    def generate_plot(self, name="plot.png"):
-        xs = []
-        ys = []
-        best_score = math.inf
-
-        for records in self.record_of_evaluations:
-            if records.score < best_score:
-                xs.append(records.num_evaluation)
-                ys.append(records.score)
-                best_score = records.score
-
-        plt.plot(xs, ys, label=name)
-
-        plt.xlabel("function evaluations")
-        plt.ylabel("cost")
-        plt.savefig(name)
 
     def best_score_list(self) -> list[float]:
         l = []
