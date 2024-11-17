@@ -79,6 +79,12 @@ class TuningAttempt:
 
         return score
 
+    def fulfills_all_constraints(self, config: ParameterConfiguration) -> bool:
+        for constraint in self.problem.constraints:
+            if not constraint.evaluate(config):
+                return False
+        return True
+
     def create_result(self):
         complete_execution_time = time.perf_counter() - self.start_time
         return TuningResult(

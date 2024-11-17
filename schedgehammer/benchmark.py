@@ -16,7 +16,7 @@ def statistical_description(a):
 
 def benchmark(problem: Problem,
               budget: list[Budget],
-              tuner_list: list[Tuner],
+              tuner_list: dict[str, Tuner],
               output_path: str = '',
               repetitions: int = 1,
               export_raw_data: bool = False):
@@ -27,9 +27,7 @@ def benchmark(problem: Problem,
 
     plt.figure()
 
-    for tuner in tuner_list:
-        tuner_name = type(tuner).__name__  # Give in tuner_list as dict or pass name to Tuner constructor?
-
+    for tuner_name, tuner in tuner_list.items():
         total_time = []
         algorithm_time = []
         final_score = []
@@ -68,11 +66,12 @@ def benchmark(problem: Problem,
             lower_bound.append(np.percentile(results[i], 50 - 68.27 / 2))
             upper_bound.append(np.percentile(results[i], 50 + 68.27 / 2))
 
-        plt.plot(xs, median, label=type(tuner).__name__)
+        plt.plot(xs, median, label=tuner_name)
         plt.fill_between(xs, lower_bound, upper_bound, alpha=0.3)
 
     plt.xlabel('function evaluations')
     plt.ylabel('cost')
+    plt.yscale('log')
     plt.legend()
     plt.savefig(os.path.join(output_path, 'plot.png'))
 

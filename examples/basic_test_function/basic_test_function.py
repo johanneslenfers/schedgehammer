@@ -1,14 +1,12 @@
 # Only needed since this is in the same repo as schedgehammer.
 import sys, os
-
-from schedgehammer.benchmark import benchmark
-from schedgehammer.random_search import RandomSearch
-
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 #################################################################
 
 import numpy as np
 
+from schedgehammer.benchmark import benchmark
+from schedgehammer.random_search import RandomSearch
 from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.param_types import (
     SwitchParam,
@@ -24,6 +22,7 @@ from schedgehammer.tuner import EvalBudget, TimeBudget
 
 def main():
     problem = Problem(
+        "magical example",
         {
             "magic": SwitchParam(),
             "mana": RealParam(0, 10),
@@ -44,11 +43,19 @@ def main():
             "order": PermutationParam([1, 2, 3, 4, 5]),
         },
         cost_function=lambda x: -cost(x),
+        constraints=[]
     )  # Make minimization problem.
 
     be = EvalBudget(1000)
     bt = TimeBudget(1.5)
-    benchmark(problem, [be, bt], [GeneticTuner(), RandomSearch()], output_path='results/', repetitions=20, export_raw_data=True)
+    benchmark(
+        problem,
+        [be, bt],
+        {"GeneticTuner": GeneticTuner(), "RandomSearch": RandomSearch()},
+        output_path='results/',
+        repetitions=20,
+        export_raw_data=True
+    )
 
 
 # a synthetic cost function
