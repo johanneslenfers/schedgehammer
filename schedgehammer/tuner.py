@@ -59,6 +59,8 @@ class TuningAttempt:
         if not self.in_budget():
             raise Exception("Budget spent!")
 
+        print("evaluate!")
+
         start = time.perf_counter()
         score = self.problem.cost_function(config)
         self.evaluation_cumulative_duration += time.perf_counter() - start

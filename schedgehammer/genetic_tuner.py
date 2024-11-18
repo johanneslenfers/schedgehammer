@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass
 
+from schedgehammer.constraint import Solver, ConstraintBinOp, ConstraintUnOp
 from schedgehammer.tuner import Tuner, TuningAttempt
 
 
@@ -17,19 +18,23 @@ class GeneticTuner(Tuner):
         elitism_size = int(self.population_size * self.elitism_share)
         reproduction_size = int(self.population_size * self.reproduction_share)
 
+        solver = Solver(
+            {k: v.get_value_range() for k, v in attempt.problem.params.items()},
+            [
+                ConstraintBinOp('tuned_gs0', 'tuned_ls0', lambda x, y : x % y == 0),
+                ConstraintBinOp('tuned_gs1', 'tuned_ls1', lambda x, y : x % y == 0),
+                ConstraintBinOp('tuned_tileX', 'tuned_vec', lambda x, y : (x + 4) % y == 0),
+                ConstraintBinOp('tuned_tileX', 'tuned_tileY', lambda x, y : x * y <= 1024),
+                ConstraintBinOp('tuned_ls0', 'tuned_ls1', lambda x, y : x * y <= 1024),
+                ConstraintUnOp('tuned_tileX', lambda x : x == 1 or x % 2 == 0),
+                ConstraintUnOp('tuned_tileY', lambda x : x == 1 or x % 2 == 0),
+                ConstraintBinOp('tuned_tileX', 'tuned_tileY', lambda x, y : (y != 1) or ((x != 1024) and (x != 1022))),
+            ]
+        )
+
         # initial population
-        population = []
-        for _ in range(self.population_size):
-            ret = {}
-            while True:
-                for [name, param] in attempt.problem.params.items():
-                    ret[name] = param.choose_random()
-
-                if not self.check_constraints or attempt.fulfills_all_constraints(ret):
-                    break
-
-            cost = attempt.evaluate_config(ret)
-            population.append((ret, cost))
+        initial = [next(solver.solve()) for _ in range(self.population_size)]
+        population = [(ret, attempt.evaluate_config(ret)) for ret in initial]
 
         while attempt.in_budget():
             population = sorted(population, key=lambda x: x[1])
@@ -38,24 +43,28 @@ class GeneticTuner(Tuner):
 
             for _ in range(self.population_size - elitism_size):
                 # choose parents from best performing configs
-                while True:
-                    parent_one = random.choice(population[:reproduction_size])[0]
-                    parent_two = random.choice(population[:reproduction_size])[0]
+                parent_one = random.choice(population[:reproduction_size])[0]
+                parent_two = random.choice(population[:reproduction_size])[0]
 
-                    child = {}
-                    for [k1, v1], [k2, v2] in zip(parent_one.items(), parent_two.items()):
-                        assert k1 == k2
-                        # crossover and / or mutation
-                        if random.random() < self.crossover_prob:
-                            child[k1] = v1
-                        else:
-                            child[k1] = v2
+                randomize_params = []
+                for [k, v1], [_, v2] in zip(parent_one.items(), parent_two.items()):
+                    # crossover and / or mutation
+                    if random.random() < self.crossover_prob:
+                        if v1 in solver.variables[k]:
+                            solver.variables[k] = [v1]
+                    else:
+                        if v2 in solver.variables[k]:
+                            solver.variables[k] = [v2]
 
-                        if random.random() < self.mutation_prob:
-                            child[k1] = attempt.problem.params[k1].choose_random()
+                    if random.random() < self.mutation_prob:
+                        randomize_params.append(k)
 
-                    if not self.check_constraints or attempt.fulfills_all_constraints(child):
-                        break
+                for rp in randomize_params:
+                    solver.variables[rp] = attempt.problem.params[
+                        rp
+                    ].get_value_range()
+
+                child = next(solver.solve())
 
                 if not attempt.in_budget():
                     return
