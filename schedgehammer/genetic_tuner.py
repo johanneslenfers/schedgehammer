@@ -29,9 +29,8 @@ class GeneticTuner(Tuner):
 
             for _ in range(self.population_size - elitism_size):
                 # choose parents from best performing configs
-                while True:
-                    parent_one = random.choice(population[:reproduction_size])[0]
-                    parent_two = random.choice(population[:reproduction_size])[0]
+                parent_one = random.choice(population[:reproduction_size])[0]
+                parent_two = random.choice(population[:reproduction_size])[0]
 
                 randomize_params = []
                 for [k, v1], [_, v2] in zip(parent_one.items(), parent_two.items()):

@@ -21,8 +21,7 @@ from schedgehammer.param_types import (
     SwitchParam,
 )
 from schedgehammer.problem import Problem
-from schedgehammer.random_search import RandomSearch
-from schedgehammer.tuner import EvalBudget, TimeBudget
+from schedgehammer.tuner import EvalBudget
 
 
 def main():
@@ -47,22 +46,21 @@ def main():
             ),
             "order": PermutationParam([1, 2, 3, 4, 5]),
         },
-        [],
         cost_function=lambda x: -cost(x),
         constraints=[],
     )  # Make minimization problem.
 
-    be = EvalBudget(1000)
+    be = EvalBudget(10000)
     # bt = TimeBudget(1.5)
     benchmark(
         problem,
-        [be, bt],
+        [be],
         {
             "GeneticTuner": GeneticTuner(local_mutation=True),
             "RandomSearch": RandomSearch(),
         },
         output_path="results/",
-        repetitions=20,
+        repetitions=1,
         export_raw_data=True,
     )
 

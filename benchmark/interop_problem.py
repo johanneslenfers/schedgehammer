@@ -61,13 +61,10 @@ def problem_from_study(study: Study) -> Problem:
                 config[name] = str(val)
         return study.query(config, fidelity_params)["compute_time"]
 
-<<<<<<< HEAD
     return Problem(
         study.definition.name,
         params,
         interop_eval,
-        [c.constraint for c in study.definition.search_space.constraints]
+        [c.constraint for c in study.definition.search_space.constraints],
     )
-=======
     return Problem(params, [], interop_eval)
->>>>>>> 1f87f2d (allow usage in benchmark run, without constraints)

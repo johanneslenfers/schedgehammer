@@ -35,8 +35,8 @@ class ConstraintParser:
 
         self.dependencies = FindVariablesVisitor().visit(self.expression)
 
-    def generate(self):
-        return GeneratingVisitor().visit(self.expression)
+    def generate(self, config: dict[str, ParamValue]):
+        return GeneratingVisitor(config, functions).visit(self.expression)
 
     def evaluate(self, config: dict[str, ParamValue]):
         return self.fun(config, functions)

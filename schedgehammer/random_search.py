@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass
 
 from schedgehammer.tuner import Tuner, TuningAttempt

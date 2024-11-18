@@ -1,12 +1,80 @@
 import copy
 import random
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Iterable, Optional
-from param_types import ParamValue
+from schedgehammer.param_types import ParamValue
 
 
 @dataclass
 class Constraint:
+    @abstractmethod
+    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
+        raise NotImplementedError
+
+
+@dataclass
+class ConstraintAnd(Constraint):
+    c1: Constraint
+    c2: Constraint
+
+    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
+        # ok without copy, because False is returned, before values are mutated
+        res1 = self.c1.filter(variables)
+        res2 = self.c2.filter(variables)
+
+        if res1 is False or res2 is False:
+            return False
+
+        if res1 is True or res2 is True:
+            return True
+
+        return None
+
+
+@dataclass
+class ConstraintOr(Constraint):
+    c1: Constraint
+    c2: Constraint
+
+    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
+        # ok without copy, because False is returned, before values are mutated
+        res1 = self.c1.filter(variables)
+        res2 = self.c2.filter(variables)
+
+        if res1 is False and res2 is False:
+            return False
+
+        if res1 is True or res2 is True:
+            return True
+
+        return None
+
+
+@dataclass
+class ConstraintUnOp(Constraint):
+    var: str
+    fn: Callable
+
+    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
+        size = len(variables[self.var])
+
+        new_domain = variables[self.var]
+        new_domain = list(filter(lambda x: self.fn(x), new_domain))
+
+        if len(new_domain) == 0:
+            return False
+
+        variables[self.var] = list(new_domain)
+
+        if size > len(variables[self.var]):
+            return True
+        else:
+            return None
+
+
+@dataclass
+class ConstraintBinOp(Constraint):
     var1: str
     var2: str
     fn: Callable
@@ -53,7 +121,7 @@ Variables = dict[str, list[ParamValue]]
 @dataclass
 class Solver:
     variables: dict[str, list[any]]
-    constraints: list[Constraint]
+    constraints: list[ConstraintBinOp]
     exploration_function: Callable[[Iterable], ParamValue] = random.choice
 
     def make_decision(self, variables: Variables) -> tuple[str, ParamValue]:
@@ -114,8 +182,10 @@ class Solver:
 
 if __name__ == "__main__":
     variables = {"a": [1, 2, 3], "b": [1, 2, 3]}
-    g = Constraint("a", "b", lambda x, y: x == y)
-    solver = Solver(variables, [g], random.choice)
+    g1 = ConstraintBinOp("a", "b", lambda x, y: x == y)
+    g2 = ConstraintUnOp("a", lambda x: x % 4 == 0)
+    gg = ConstraintOr(g1, g2)
+    solver = Solver(variables, [gg], random.choice)
     solutions = list(solver.solve())
     print(f"there are {len(solutions)} solutions")
     print(solutions)
