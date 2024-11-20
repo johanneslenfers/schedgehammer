@@ -1,7 +1,13 @@
 # Only needed since this is in the same repo as schedgehammer.
-import sys, os
+import sys
+import os
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 #################################################################
+
+from schedgehammer.benchmark import benchmark
+from schedgehammer.random_search import RandomSearch
+
 
 import numpy as np
 
@@ -51,7 +57,7 @@ def main():
     benchmark(
         problem,
         [be, bt],
-        {"GeneticTuner": GeneticTuner(), "RandomSearch": RandomSearch()},
+        {"GeneticTuner": GeneticTuner(local_mutation=True), "RandomSearch": RandomSearch()},
         output_path='results/',
         repetitions=20,
         export_raw_data=True

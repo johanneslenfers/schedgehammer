@@ -1,5 +1,6 @@
 # Only needed since this is in the same repo as schedgehammer.
-import sys, os
+import sys
+import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 ##############################################################
 
@@ -28,6 +29,7 @@ if __name__ == "__main__":
 
     tuners = {
         "GeneticTuner with constraints": GeneticTuner(),
+        "GeneticTuner with LocalMutation": GeneticTuner(local_mutation=True),
         "RandomSearch with constraints": RandomSearch(),
         "GeneticTuner without constraints": GeneticTuner(False),
         "RandomSearch without constraints": RandomSearch(False),
@@ -36,4 +38,4 @@ if __name__ == "__main__":
     for benchmark_name in BENCHMARKS:
         study = cb.benchmark(benchmark_name)
         problem = problem_from_study(study)
-        benchmark(problem, [EvalBudget(ITERATIONS)], tuners, f'results/{benchmark_name}', 100, export_raw_data=True)
+        benchmark(problem, [EvalBudget(ITERATIONS)], tuners, f'results/{benchmark_name}', 10, export_raw_data=True)
