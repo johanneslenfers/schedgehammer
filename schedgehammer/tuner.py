@@ -7,7 +7,7 @@ from typing import Dict
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
 from schedgehammer.result import EvaluationResult, TuningResult
-from schedgehammer.constraints import Solver
+from schedgehammer.constraint import Solver
 
 ParameterConfiguration = Dict[str, ParamValue]
 

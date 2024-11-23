@@ -32,23 +32,22 @@ class GeneticTuner(Tuner):
                 parent_one = random.choice(population[:reproduction_size])[0]
                 parent_two = random.choice(population[:reproduction_size])[0]
 
-                randomize_params = []
                 for [k, v1], [_, v2] in zip(parent_one.items(), parent_two.items()):
                     # crossover and / or mutation
                     if random.random() < self.crossover_prob:
-                        # TODO: erst schauen, ob neuer Wert moeglich ist
-                        attempt.solver.variables[k] = [v1]
+                        attempt.solver.decision_queue.append((k, v1))
                     else:
-                        attempt.solver.variables[k] = [v2]
+                        attempt.solver.decision_queue.append((k, v2))
 
                     if random.random() < self.mutation_prob:
-                        # TODO: local mutation
-                        randomize_params.append(k)
-
-                for rp in randomize_params:
-                    attempt.solver.variables[rp] = attempt.problem.params[
-                        rp
-                    ].get_value_range()
+                        if self.local_mutation:
+                            attempt.solver.decision_queue.append(
+                                (k, attempt.problem.params[k].choose_random(v1))
+                            )
+                        else:
+                            attempt.solver.decision_queue.append(
+                                (k, attempt.problem.params[k].choose_random())
+                            )
 
                 child = next(attempt.solver.solve())
 

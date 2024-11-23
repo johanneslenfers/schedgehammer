@@ -67,4 +67,3 @@ def problem_from_study(study: Study) -> Problem:
         interop_eval,
         [c.constraint for c in study.definition.search_space.constraints],
     )
-    return Problem(params, [], interop_eval)
