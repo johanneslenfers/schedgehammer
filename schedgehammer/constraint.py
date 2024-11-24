@@ -3,6 +3,7 @@ import math
 import random
 from abc import abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Callable, Iterable, Optional
 
 from antlr4.CommonTokenStream import CommonTokenStream
@@ -54,49 +55,17 @@ class ConstraintExpression:
             raise Exception("Unsupported number of dependencies")
 
 
+class FilterResult(Enum):
+    Changed = 1
+    Unchanged = 2
+    Empty = 3
+
+
 @dataclass
 class Constraint:
     @abstractmethod
-    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
+    def filter(self, variables: dict[str, list[any]]) -> FilterResult:
         raise NotImplementedError
-
-
-@dataclass
-class ConstraintAnd(Constraint):
-    c1: Constraint
-    c2: Constraint
-
-    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
-        # ok without copy, because False is returned, before values are mutated
-        res1 = self.c1.filter(variables)
-        res2 = self.c2.filter(variables)
-
-        if res1 is False or res2 is False:
-            return False
-
-        if res1 is True or res2 is True:
-            return True
-
-        return None
-
-
-@dataclass
-class ConstraintOr(Constraint):
-    c1: Constraint
-    c2: Constraint
-
-    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
-        # ok without copy, because False is returned, before values are mutated
-        res1 = self.c1.filter(variables)
-        res2 = self.c2.filter(variables)
-
-        if res1 is False and res2 is False:
-            return False
-
-        if res1 is True or res2 is True:
-            return True
-
-        return None
 
 
 @dataclass
@@ -104,21 +73,21 @@ class ConstraintUnOp(Constraint):
     var: str
     fn: Callable
 
-    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
+    def filter(self, variables: dict[str, list[any]]) -> FilterResult:
         size = len(variables[self.var])
 
         new_domain = variables[self.var]
         new_domain = list(filter(lambda x: self.fn(x), new_domain))
 
         if len(new_domain) == 0:
-            return False
+            return FilterResult.Empty
 
         variables[self.var] = list(new_domain)
 
         if size > len(variables[self.var]):
-            return True
+            return FilterResult.Changed
         else:
-            return None
+            return FilterResult.Unchanged
 
 
 @dataclass
@@ -127,7 +96,7 @@ class ConstraintBinOp(Constraint):
     var2: str
     fn: Callable
 
-    def filter(self, variables: dict[str, list[any]]) -> Optional[bool]:
+    def filter(self, variables: dict[str, list[any]]) -> FilterResult:
         """
         Filters variable domains.
         Returns True if changed, False if no valid values remain,
@@ -142,7 +111,7 @@ class ConstraintBinOp(Constraint):
             )
 
         if len(new_domain2) == 0:
-            return False
+            return FilterResult.Empty
 
         variables[self.var2] = list(new_domain2)
 
@@ -153,14 +122,14 @@ class ConstraintBinOp(Constraint):
             )
 
         if len(new_domain1) == 0:
-            return False
+            return FilterResult.Empty
 
         variables[self.var1] = list(new_domain1)
 
         if size > len(variables[self.var1]) + len(variables[self.var2]):
-            return True
+            return FilterResult.Changed
         else:
-            return None
+            return FilterResult.Unchanged
 
 
 Variables = dict[str, list[ParamValue]]
@@ -201,9 +170,9 @@ class Solver:
             fltrs = False
             for c in self.constraints:
                 filtered = c.filter(variables)
-                if filtered is False:
+                if filtered == FilterResult.Empty:
                     return False
-                elif filtered is True:
+                elif filtered == FilterResult.Changed:
                     fltrs |= True
             if not fltrs:
                 return True
@@ -233,14 +202,3 @@ class Solver:
 
     def solve(self):
         yield from self.dfs(self.variables)
-
-
-if __name__ == "__main__":
-    variables = {"a": [1, 2, 3], "b": [1, 2, 3]}
-    g1 = ConstraintBinOp("a", "b", lambda x, y: x == y)
-    g2 = ConstraintUnOp("a", lambda x: x % 4 == 0)
-    gg = ConstraintOr(g1, g2)
-    solver = Solver(variables, [gg], random.choice)
-    solutions = list(solver.solve())
-    print(f"there are {len(solutions)} solutions")
-    print(solutions)
