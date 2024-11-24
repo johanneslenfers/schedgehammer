@@ -1,7 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, TypeVar, Optional
+from typing import Generic, TypeVar, Optional, Callable
 from numbers import Number
 
 ParamValue = bool | float | int | str | list[int]
@@ -130,9 +130,51 @@ class PermutationParam(Param[list[int]]):
                 idx2 = random.randint(0, len(self.values) - 1)
 
                 current_value[idx1], current_value[idx2] = current_value[idx2], current_value[idx1]
-                
+
             return current_value
 
+class MethodParameter(ABC):
+    pass
+
+@dataclass
+class SingleObjectParameter(MethodParameter):
+    type: str
+    remove_from_pool: bool
+
+@dataclass
+class ObjectPoolPermutationParameter(MethodParameter):
+    type: str
+    remove_from_pool: bool
+
+@dataclass
+class BasicParameter(MethodParameter):
+    param: Param
+
+class ReturnType(ABC):
+    pass
+
+@dataclass
+class ReturnSingleObjectParameter(ReturnType):
+    type: str
+    pass
+
+@dataclass
+class ReturnObjectListParameter(ReturnType):
+    type: str
+    pass
+
+@dataclass
+class MethodDescription:
+    name: str
+    parameters: list[MethodParameter]
+    return_type: ReturnType
+    fun: Callable
+
+@dataclass
+class ScheduleParam(Param[None]):
+    api_description: list[MethodDescription]
+    create_schedule: Callable[[None], object]
+    finish_schedule: Callable[[object], object]
 
 TYPE_MAP = {
     "switch": SwitchParam,
