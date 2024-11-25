@@ -6,7 +6,6 @@ from schedgehammer.tuner import Tuner, TuningAttempt
 
 @dataclass
 class GeneticTuner(Tuner):
-    check_constraints: bool = True
     population_size: int = 100
     elitism_share: float = 0.1
     reproduction_share: float = 0.3
