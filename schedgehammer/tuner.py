@@ -76,7 +76,6 @@ class TuningAttempt:
         if score < self.best_score:
             self.best_score = score
             self.best_config = config
-
         return score
 
     def fulfills_all_constraints(self, config: ParameterConfiguration) -> bool:
@@ -92,7 +91,7 @@ class TuningAttempt:
             self.record_of_evaluations,
             complete_execution_time,
             complete_execution_time - self.evaluation_cumulative_duration,
-            self.evaluation_cumulative_duration
+            self.evaluation_cumulative_duration,
         )
 
     def in_budget(self) -> bool:
@@ -106,7 +105,6 @@ class TuningAttempt:
 
 
 class Tuner(ABC):
-
     def tune(self, problem: Problem, budgets: list[Budget]) -> TuningResult:
         attempt = TuningAttempt(problem, budgets)
         self.do_tuning(attempt)

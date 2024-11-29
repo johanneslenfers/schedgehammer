@@ -3,3 +3,4 @@ matplotlib
 interopt<=0.2.1
 catbench @ git+https://github.com/anonymoussisef/catbench@main
 antlr4-python3-runtime
+apache-tvm

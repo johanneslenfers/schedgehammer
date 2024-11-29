@@ -1,8 +1,8 @@
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, TypeVar, Optional
 from numbers import Number
+from typing import Callable, Generic, Optional, TypeVar
 
 ParamValue = bool | float | int | str | list[int]
 T = TypeVar("T", bound=ParamValue)
@@ -129,8 +129,11 @@ class PermutationParam(Param[list[int]]):
                 idx1 = random.randint(0, len(self.values) - 1)
                 idx2 = random.randint(0, len(self.values) - 1)
 
-                current_value[idx1], current_value[idx2] = current_value[idx2], current_value[idx1]
-                
+                current_value[idx1], current_value[idx2] = (
+                    current_value[idx2],
+                    current_value[idx1],
+                )
+
             return current_value
 
 
