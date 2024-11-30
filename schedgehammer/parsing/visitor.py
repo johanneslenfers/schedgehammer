@@ -224,12 +224,12 @@ class GeneratingVisitor(ConstraintVisitor):
     # Visit a parse tree produced by ConstraintParser#LogicalNotExpr.
     def visitLogicalNotExpr(self, ctx: ConstraintParser.LogicalNotExprContext):
         assert ctx.getChildCount() == 2
-        return f"(not {self.visit(ctx.getChild(1))})"
+        return f"(~ {self.visit(ctx.getChild(1))})"
 
     # Visit a parse tree produced by ConstraintParser#ListAccessExpr.
     def visitListAccessExpr(self, ctx: ConstraintParser.ListAccessExprContext):
         assert ctx.getChildCount() == 4
-        return f"({self.visit(ctx.getChild(0))}[{self.visit(ctx.getChild(2))}])"
+        return f'({self.visit(ctx.getChild(0))}["{self.visit(ctx.getChild(2))}"])'
 
     # Visit a parse tree produced by ConstraintParser#UnarySignExpr.
     def visitUnarySignExpr(self, ctx: ConstraintParser.UnarySignExprContext):
@@ -245,7 +245,7 @@ class GeneratingVisitor(ConstraintVisitor):
 
     # Visit a parse tree produced by ConstraintParser#LogicalAndExpr.
     def visitLogicalAndExpr(self, ctx: ConstraintParser.LogicalAndExprContext):
-        return f"({self.visit(ctx.getChild(0))} and {self.visit(ctx.getChild(2))})"
+        return f"({self.visit(ctx.getChild(0))} & {self.visit(ctx.getChild(2))})"
 
     # Visit a parse tree produced by ConstraintParser#PowerExpr.
     def visitPowerExpr(self, ctx: ConstraintParser.PowerExprContext):
@@ -253,7 +253,7 @@ class GeneratingVisitor(ConstraintVisitor):
 
     # Visit a parse tree produced by ConstraintParser#LogicalOrExpr.
     def visitLogicalOrExpr(self, ctx: ConstraintParser.LogicalOrExprContext):
-        return f"({self.visit(ctx.getChild(0))} or {self.visit(ctx.getChild(2))})"
+        return f"({self.visit(ctx.getChild(0))} | {self.visit(ctx.getChild(2))})"
 
     # Visit a parse tree produced by ConstraintParser#AdditionExpr.
     def visitAdditionExpr(self, ctx: ConstraintParser.AdditionExprContext):
