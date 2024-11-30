@@ -6,16 +6,19 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy
 import tvm
+from matplotlib import pyplot as plt
 from tvm import te
 
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
 from schedgehammer.schedule_type import ScheduleEnvironment, ScheduleParam
-from schedgehammer.tuner import TuningAttempt
+from schedgehammer.tuner import EvalBudget, TuningAttempt
 
-M = 1024
-K = 1024
-N = 1024
+M = 512
+K = 512
+N = 512
+
+results = []
 
 
 def create_schedule() -> ScheduleEnvironment:
@@ -47,12 +50,22 @@ def cost_function(config):
 
     func = config["schedule"]
 
-    evaluator = func.time_evaluator(func.entry_name, dev, number=5)
-    result = evaluator(a, b, c).mean
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=3)
+    result = evaluator(a, b, c)
     # Check if calculation is correct
     assert c.asnumpy().all() == numpy.dot(a.asnumpy(), b.asnumpy()).all()
     print("Result:", result)
-    return result
+    if not results or result.mean < results[-1]["mean"]:
+        results.append({"min": result.min, "mean": result.mean, "max": result.max})
+    else:
+        results.append(results[-1])
+    return result.mean
+
+
+def finish_schedule(env: ScheduleEnvironment):
+    return tvm.build(
+        env.schedule, env.static_args + [env.computed_arg], name="anything"
+    )
 
 
 def find_baseline():
@@ -66,23 +79,34 @@ def find_baseline():
     a = tvm.nd.array(numpy.random.rand(M, K).astype(dtype), dev)
     b = tvm.nd.array(numpy.random.rand(K, N).astype(dtype), dev)
     c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), dev)
-    evaluator = func.time_evaluator(func.entry_name, dev, number=5)
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=3)
     result = evaluator(a, b, c).mean
     print("Baseline:", result)
     return result
 
 
 if __name__ == "__main__":
-    find_baseline()
+    baseline = find_baseline()
     tuner = RandomSearch(check_constraints=False)
     tuner.do_tuning(
         TuningAttempt(
             problem=Problem(
                 "schedge",
-                {"schedule": ScheduleParam(create_schedule, 1, 4)},
+                {"schedule": ScheduleParam(create_schedule, finish_schedule, 1, 4)},
                 cost_function,
                 [],
             ),
-            budgets=[],
+            budgets=[EvalBudget(60)],
         )
     )
+    means, mins, maxs = zip(*[(x["mean"], x["min"], x["max"]) for x in results])
+    xs = range(len(means))
+    plt.figure()
+    plt.plot(xs, means, label="Random Search")
+    plt.fill_between(xs, mins, maxs, alpha=0.3)
+    plt.plot(xs, [baseline] * len(xs), label="baseline")
+    plt.xlabel("function evaluations")
+    plt.ylabel("cost")
+    plt.yscale("log")
+    plt.legend()
+    plt.show()

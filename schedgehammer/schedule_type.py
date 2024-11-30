@@ -171,6 +171,7 @@ class ScheduleEnvironment:
 @dataclass
 class ScheduleParam(Param[list[Method]]):
     create_schedule: Callable[[None], ScheduleEnvironment]
+    finish_schedule: Callable[[ScheduleEnvironment], tvm.module.Module]
     min_length: int
     max_length: int
     api_description: list[Method] = field(
@@ -179,7 +180,7 @@ class ScheduleParam(Param[list[Method]]):
     successful_random_generations: int = 0
     failed_random_generations: int = 0
 
-    def choose_random(self, _=None) -> list[Method]:
+    def choose_random(self, _=None) -> Callable:
         while True:
             env = self.create_schedule()
             schedule: list[Method] = []
@@ -211,7 +212,5 @@ class ScheduleParam(Param[list[Method]]):
                     break
             break
         self.successful_random_generations += 1
-        print("Try schedule:", schedule)
-        return tvm.build(
-            env.schedule, env.static_args + [env.computed_arg], name="anything"
-        )
+        # print("Try schedule:", schedule)
+        return self.finish_schedule(env)
