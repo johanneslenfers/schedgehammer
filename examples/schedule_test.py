@@ -12,11 +12,13 @@ from tvm import te
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
 from schedgehammer.schedule_type import ScheduleEnvironment, ScheduleParam
-from schedgehammer.tuner import EvalBudget, TuningAttempt
+from schedgehammer.tuner import EvalBudget
 
 M = 512
 K = 512
 N = 512
+
+ITERATIONS = 30
 
 results = []
 
@@ -68,7 +70,7 @@ def finish_schedule(env: ScheduleEnvironment):
     )
 
 
-def find_baseline():
+def find_baseline() -> float:
     # Find time of unchanged schedule
     env = create_schedule()
     func = tvm.build(
@@ -86,25 +88,26 @@ def find_baseline():
 
 
 if __name__ == "__main__":
-    baseline = find_baseline()
+    baseline_score = find_baseline()
     tuner = RandomSearch(check_constraints=False)
-    tuner.do_tuning(
-        TuningAttempt(
-            problem=Problem(
-                "schedge",
-                {"schedule": ScheduleParam(create_schedule, finish_schedule, 1, 4)},
-                cost_function,
-                [],
-            ),
-            budgets=[EvalBudget(60)],
-        )
+    param = ScheduleParam(create_schedule, finish_schedule, 1, 4)
+    tuner.tune(
+        problem=Problem(
+            "schedge",
+            {"schedule": param},
+            cost_function,
+            [],
+        ),
+        budgets=[EvalBudget(ITERATIONS)],
     )
     means, mins, maxs = zip(*[(x["mean"], x["min"], x["max"]) for x in results])
     xs = range(len(means))
+    print("Failed schedule generations:", param.failed_random_generations)
+    print("Successful schedule generations:", param.successful_random_generations)
     plt.figure()
     plt.plot(xs, means, label="Random Search")
     plt.fill_between(xs, mins, maxs, alpha=0.3)
-    plt.plot(xs, [baseline] * len(xs), label="baseline")
+    plt.plot(xs, [baseline_score] * len(xs), label="baseline")
     plt.xlabel("function evaluations")
     plt.ylabel("cost")
     plt.yscale("log")

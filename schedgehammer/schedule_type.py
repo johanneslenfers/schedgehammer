@@ -180,19 +180,34 @@ class ScheduleParam(Param[list[Method]]):
     successful_random_generations: int = 0
     failed_random_generations: int = 0
 
-    def choose_random(self, _=None) -> Callable:
+    def _add_next_method(
+        self,
+        method_candidates: list[Method],
+        schedule: list[Method],
+        env: ScheduleEnvironment,
+    ) -> tuple[list[Method], list[Method]]:
+        """
+        Adds next method to the schedule and returns updated schedule and updated set
+        of method candidates for the next step.
+        """
+        method = method_candidates.pop(random.randrange(len(method_candidates)))
+        if method.is_possible(schedule, env.axis_pool):
+            method_instance = method.get_random(
+                env.axis_pool, env.schedule[env.computed_arg]
+            )
+            schedule.append(method_instance)
+            method_candidates = self.api_description.copy()
+        return schedule, method_candidates
+
+    def choose_random(self, _=None) -> tvm.module.Module:
         while True:
             env = self.create_schedule()
             schedule: list[Method] = []
             method_candidates = self.api_description.copy()
             while len(schedule) < self.min_length:
-                method = method_candidates.pop(random.randrange(len(method_candidates)))
-                if method.is_possible(schedule, env.axis_pool):
-                    method_instance = method.get_random(
-                        env.axis_pool, env.schedule[env.computed_arg]
-                    )
-                    schedule.append(method_instance)
-                    method_candidates = self.api_description.copy()
+                schedule, method_candidates = self._add_next_method(
+                    method_candidates, schedule, env
+                )
                 if not method_candidates:
                     break
             if len(schedule) < self.min_length:
@@ -201,13 +216,9 @@ class ScheduleParam(Param[list[Method]]):
             desired_length = random.randint(self.min_length, self.max_length)
             method_candidates = self.api_description.copy()
             while len(schedule) < desired_length:
-                method = method_candidates.pop(random.randrange(len(method_candidates)))
-                if method.is_possible(schedule, env.axis_pool):
-                    method_instance = method.get_random(
-                        env.axis_pool, env.schedule[env.computed_arg]
-                    )
-                    schedule.append(method_instance)
-                    method_candidates = self.api_description.copy()
+                schedule, method_candidates = self._add_next_method(
+                    method_candidates, schedule, env
+                )
                 if not method_candidates:
                     break
             break
