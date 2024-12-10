@@ -13,8 +13,8 @@ from schedgehammer.random_search import RandomSearch
 from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.tuner import EvalBudget
 
-ITERATIONS = 500
-REPETITIONS = 10
+ITERATIONS = 1000
+REPETITIONS = 5
 BENCHMARKS = [
     "spmm",
     "spmv",
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         benchmark(
             problem,
             [EvalBudget(ITERATIONS)],
-            tuners,
+            constrained_tuners,
             f"results/{benchmark_name}",
             REPETITIONS,
             export_raw_data=True,
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         benchmark(
             problem,
             [EvalBudget(ITERATIONS)],
-            constrained_tuners,
+            tuners,
             f"results/{benchmark_name}",
             REPETITIONS,
             export_raw_data=True,
