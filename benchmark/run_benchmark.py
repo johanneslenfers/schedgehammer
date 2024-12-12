@@ -49,18 +49,19 @@ if __name__ == "__main__":
             problem,
             [EvalBudget(ITERATIONS)],
             constrained_tuners,
-            f"results/{benchmark_name}",
+            f"results/{benchmark_name}/constrained",
             REPETITIONS,
             export_raw_data=True,
         )
 
         # remove constraints
         problem.constraints = []
+        problem.constraint_expressions = []
         benchmark(
             problem,
             [EvalBudget(ITERATIONS)],
             tuners,
-            f"results/{benchmark_name}",
+            f"results/{benchmark_name}/unconstrained",
             REPETITIONS,
             export_raw_data=True,
         )

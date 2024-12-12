@@ -7,7 +7,7 @@ from typing import Dict
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
 from schedgehammer.result import EvaluationResult, TuningResult
-from schedgehammer.constraint import Solver
+from schedgehammer.constraint import Solver, Solver2
 
 ParameterConfiguration = Dict[str, ParamValue]
 
@@ -36,7 +36,7 @@ class TimeBudget(Budget):
 
 class TuningAttempt:
     problem: Problem
-    solver: Solver
+    solver: Solver2
     budgets: list[Budget]
     record_of_evaluations: list[EvaluationResult]
     start_time: float
@@ -63,7 +63,12 @@ class TuningAttempt:
             raise Exception("Budget spent!")
 
         start = time.perf_counter()
-        score = self.problem.cost_function(config)
+
+        if self.fulfills_all_constraints(config):
+            score = self.problem.cost_function(config)
+        else:
+            score = math.inf
+
         self.evaluation_cumulative_duration += time.perf_counter() - start
 
         self.record_of_evaluations.append(
@@ -83,7 +88,7 @@ class TuningAttempt:
         return score
 
     def fulfills_all_constraints(self, config: ParameterConfiguration) -> bool:
-        for constraint in self.problem.constraints:
+        for constraint in self.problem.constraint_expressions:
             if not constraint.evaluate(config):
                 return False
         return True

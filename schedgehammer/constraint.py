@@ -4,12 +4,12 @@ import random
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable
 
 from antlr4.CommonTokenStream import CommonTokenStream
 from antlr4.InputStream import InputStream
 
-from schedgehammer.param_types import ParamValue
+from schedgehammer.param_types import ParamValue, Param
 from schedgehammer.parsing.antlr.ConstraintLexer import ConstraintLexer
 from schedgehammer.parsing.antlr.ConstraintParser import ConstraintParser
 from schedgehammer.parsing.visitor import (
@@ -134,6 +134,114 @@ class ConstraintBinOp(Constraint):
 
 Variables = dict[str, list[ParamValue]]
 
+class Solver2:
+    domains: dict[str, list[ParamValue]]
+    generation_order: list[tuple[str, list[ConstraintExpression]]]
+
+    search_tree: dict
+    params: dict[str, Param]
+
+    def __init__(self, params: dict[str, Param], constraints: list[ConstraintExpression]):
+        self.generation_order = self.calculate_generation_order(params, constraints)
+        self.domains = {}
+        self.search_tree = {}
+        self.params = params
+
+        for param_name, constraints in self.generation_order:
+            self.domains[param_name] = params[param_name].get_value_range()
+            for constraint in constraints.copy():
+                if len(constraint.dependencies) == 1:
+                    self.domains[param_name] = list(filter(
+                        lambda x: constraint.evaluate({param_name: x}),
+                        self.domains[param_name]
+                    ))
+                    constraints.remove(constraint)
+
+    def calculate_generation_order(self, params: dict[str, Param], constraints: list[ConstraintExpression]):
+        generation_order = []
+        used_params = []
+        remaining_params = set(params.keys())
+        remaining_constraints = set(constraints.copy())
+
+        while len(remaining_params) > 0:
+            best_param = None
+            best_resolved_constraints = []
+
+            for param in remaining_params:
+                resolved_constraints = []
+                for constraint in remaining_constraints:
+                    if constraint.dependencies.issubset(set(used_params + [param])):
+                        resolved_constraints.append(constraint)
+                if len(resolved_constraints) > len(best_resolved_constraints):
+                    best_resolved_constraints = resolved_constraints
+                    best_param = param
+
+            if best_param is None:
+                best_param = list(remaining_params)[0]
+
+            generation_order.append((best_param, best_resolved_constraints))
+            remaining_params.remove(best_param)
+            used_params.append(best_param)
+            remaining_constraints.difference_update(best_resolved_constraints)
+        return generation_order
+
+    def search_recursively(self, config, search_branch, depth = 0):
+        if depth >= len(self.generation_order):
+            return True
+
+        param_name, constraints = self.generation_order[depth]
+
+        for i in range(5):
+            if param_name in self.domains:
+                config[param_name] = random.choice(self.domains[param_name])
+            else:
+                config[param_name] = self.params[param_name].choose_random()
+
+            config_value_str = str(config[param_name])
+
+            if config_value_str in search_branch and config_value_str is None:
+                continue
+
+            works = all(map(lambda constraint: constraint.evaluate(config), constraints))
+            if not works:
+                search_branch[config_value_str] = None
+                continue
+
+            if config_value_str not in search_branch:
+                search_branch[config_value_str] = {}
+
+            if self.search_recursively(config, search_branch[config_value_str], depth + 1):
+                return True
+            else:
+                search_branch[config_value_str] = None
+
+        def test_value(value):
+            config[param_name] = value
+            return all(map(lambda constraint: constraint.evaluate(config), constraints))
+
+        if param_name in self.domains:
+            if len(constraints) > 0:
+                domain = list(filter(test_value, self.domains[param_name]))
+            else:
+                domain = self.domains[param_name]
+            while len(domain) > 0:
+                value = random.choice(domain)
+                config[param_name] = value
+                domain.remove(value)
+                if str(value) not in search_branch:
+                    search_branch[str(value)] = {}
+
+                if self.search_recursively(config, search_branch[str(value)], depth + 1):
+                    return True
+        # else What do we do for reals?
+
+        return False
+
+    def solve(self):
+        config = {}
+        while not self.search_recursively(config, self.search_tree):  # TODO: Change
+            pass
+        return config
 
 @dataclass
 class Solver:
