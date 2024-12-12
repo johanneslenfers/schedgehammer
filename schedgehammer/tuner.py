@@ -7,6 +7,7 @@ from typing import Dict
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
 from schedgehammer.result import EvaluationResult, TuningResult
+from schedgehammer.constraint import Solver
 
 ParameterConfiguration = Dict[str, ParamValue]
 
@@ -35,6 +36,7 @@ class TimeBudget(Budget):
 
 class TuningAttempt:
     problem: Problem
+    solver: Solver
     budgets: list[Budget]
     record_of_evaluations: list[EvaluationResult]
     start_time: float
@@ -50,6 +52,7 @@ class TuningAttempt:
 
     def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem
+        self.solver = self.problem.get_solver()
         self.budgets = budgets
         self.record_of_evaluations = []
         self.start_time = time.perf_counter()
@@ -92,7 +95,7 @@ class TuningAttempt:
             self.record_of_evaluations,
             complete_execution_time,
             complete_execution_time - self.evaluation_cumulative_duration,
-            self.evaluation_cumulative_duration
+            self.evaluation_cumulative_duration,
         )
 
     def in_budget(self) -> bool:

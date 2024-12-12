@@ -6,7 +6,6 @@ from schedgehammer.tuner import Tuner, TuningAttempt
 
 @dataclass
 class GeneticTuner(Tuner):
-    check_constraints: bool = True
     population_size: int = 100
     elitism_share: float = 0.1
     reproduction_share: float = 0.3
@@ -19,18 +18,8 @@ class GeneticTuner(Tuner):
         reproduction_size = int(self.population_size * self.reproduction_share)
 
         # initial population
-        population = []
-        for _ in range(self.population_size):
-            ret = {}
-            while True:
-                for [name, param] in attempt.problem.params.items():
-                    ret[name] = param.choose_random()
-
-                if not self.check_constraints or attempt.fulfills_all_constraints(ret):
-                    break
-
-            cost = attempt.evaluate_config(ret)
-            population.append((ret, cost))
+        initial = [next(attempt.solver.solve()) for _ in range(self.population_size)]
+        population = [(ret, attempt.evaluate_config(ret)) for ret in initial]
 
         while attempt.in_budget():
             population = sorted(population, key=lambda x: x[1])
@@ -39,27 +28,27 @@ class GeneticTuner(Tuner):
 
             for _ in range(self.population_size - elitism_size):
                 # choose parents from best performing configs
-                while True:
-                    parent_one = random.choice(population[:reproduction_size])[0]
-                    parent_two = random.choice(population[:reproduction_size])[0]
+                parent_one = random.choice(population[:reproduction_size])[0]
+                parent_two = random.choice(population[:reproduction_size])[0]
 
-                    child = {}
-                    for [k1, v1], [k2, v2] in zip(parent_one.items(), parent_two.items()):
-                        assert k1 == k2
-                        # crossover and / or mutation
-                        if random.random() < self.crossover_prob:
-                            child[k1] = v1
+                for [k, v1], [_, v2] in zip(parent_one.items(), parent_two.items()):
+                    # crossover and / or mutation
+                    if random.random() < self.crossover_prob:
+                        attempt.solver.decision_queue.append((k, v1))
+                    else:
+                        attempt.solver.decision_queue.append((k, v2))
+
+                    if random.random() < self.mutation_prob:
+                        if self.local_mutation:
+                            attempt.solver.decision_queue.append(
+                                (k, attempt.problem.params[k].choose_random(v1))
+                            )
                         else:
-                            child[k1] = v2
+                            attempt.solver.decision_queue.append(
+                                (k, attempt.problem.params[k].choose_random())
+                            )
 
-                        if random.random() < self.mutation_prob:
-                            if self.local_mutation:
-                                child[k1] = attempt.problem.params[k1].choose_random(v1)
-                            else:
-                                child[k1] = attempt.problem.params[k1].choose_random()
-
-                    if not self.check_constraints or attempt.fulfills_all_constraints(child):
-                        break
+                child = next(attempt.solver.solve())
 
                 if not attempt.in_budget():
                     return
