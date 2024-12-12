@@ -137,7 +137,7 @@ Variables = dict[str, list[ParamValue]]
 
 @dataclass
 class Solver:
-    variables: dict[str, list[any]]
+    variables: dict[str, list[ParamValue]]
     constraints: list[ConstraintBinOp]
     decision_queue: list[tuple[str, ParamValue]] = field(default_factory=list)
     exploration_function: Callable[[Iterable], ParamValue] = random.choice
