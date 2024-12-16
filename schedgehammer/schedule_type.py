@@ -55,7 +55,7 @@ class Method(ABC):
     @abstractmethod
     def is_possible(
         cls, previous_steps: list[Method], current_axis_pool: list[TvmAxis]
-    ) -> Method:
+    ) -> bool:
         """
         Checks if it is possible to meaningfully apply the method.
         IMPORTANT: Write down assumptions about hard and soft constraints in the docstring.

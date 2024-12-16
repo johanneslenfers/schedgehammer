@@ -118,7 +118,7 @@ def get_ansor_baseline() -> float:
     return exec_time
 
 
-def find_baseline() -> float:
+def get_baseline() -> float:
     # Find time of unchanged schedule
     env = create_schedule()
     func = tvm.build(
@@ -133,7 +133,7 @@ def find_baseline() -> float:
     return result
 
 
-def find_blocked_baseline(bn=32, kfactor=4) -> float:
+def get_blocking_baseline(bn=32, kfactor=4) -> float:
     env = create_schedule()
     # Apply blocking as described in https://tvm.apache.org/docs/v0.13.0/how_to/optimize_operators/opt_gemm.html
     C = env.computed_arg
@@ -158,7 +158,7 @@ def find_blocked_baseline(bn=32, kfactor=4) -> float:
 
 
 if __name__ == "__main__":
-    baseline_score = find_baseline()
+    baseline_score = get_baseline()
     ansor_baseline = get_ansor_baseline()
     print("Baseline:", baseline_score)
 
@@ -183,7 +183,7 @@ if __name__ == "__main__":
                 "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp
             )
             best_block_schedule = min(
-                best_block_schedule, find_blocked_baseline(2**bn_exp, 2**kfactor_exp)
+                best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
             )
 
     zipped_results = list(zip(*results))
