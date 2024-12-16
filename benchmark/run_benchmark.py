@@ -13,21 +13,24 @@ from schedgehammer.random_search import RandomSearch
 from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.tuner import EvalBudget
 
+from multiprocessing import Pool
+
 ITERATIONS = 1000
-REPETITIONS = 5
+REPETITIONS = 15
 BENCHMARKS = [
+    "harris",
     "spmm",
     "spmv",
     "sddmm",
     "mttkrp",
     "ttv",
     # "asum",
-    "harris",
     "kmeans",
     "stencil",
 ]
 
-if __name__ == "__main__":
+
+def run_benchmark(benchmark_name):
     constrained_tuners = {
         "GeneticTuner with constraints": GeneticTuner(),
         "GeneticTuner with constraints and LocalMutation": GeneticTuner(
@@ -42,25 +45,29 @@ if __name__ == "__main__":
         "RandomSearch without constraints": RandomSearch(),
     }
 
-    for benchmark_name in BENCHMARKS:
-        study = cb.benchmark(benchmark_name)
-        problem = problem_from_study(study)
-        benchmark(
-            problem,
-            [EvalBudget(ITERATIONS)],
-            constrained_tuners,
-            f"results/{benchmark_name}",
-            REPETITIONS,
-            export_raw_data=True,
-        )
+    study = cb.benchmark(benchmark_name)
+    problem = problem_from_study(study)
+    benchmark(
+        problem,
+        [EvalBudget(ITERATIONS)],
+        constrained_tuners,
+        f"results/9802a88/{benchmark_name}/constrained",
+        REPETITIONS,
+        export_raw_data=True,
+    )
 
-        # remove constraints
-        problem.constraints = []
-        benchmark(
-            problem,
-            [EvalBudget(ITERATIONS)],
-            tuners,
-            f"results/{benchmark_name}",
-            REPETITIONS,
-            export_raw_data=True,
-        )
+    # remove constraints
+    problem.constraints = []
+    benchmark(
+        problem,
+        [EvalBudget(ITERATIONS)],
+        tuners,
+        f"results/9802a88/{benchmark_name}/unconstrained",
+        REPETITIONS,
+        export_raw_data=True,
+    )
+
+if __name__ == "__main__":
+    with Pool(3) as p:
+        p.map(run_benchmark, BENCHMARKS)
+

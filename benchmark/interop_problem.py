@@ -10,6 +10,7 @@ from interopt.parameter import (
     Real as RealInteropt,
 )
 
+from schedgehammer.constraint import Constraint, ConstraintExpression
 from schedgehammer.problem import Problem
 from schedgehammer.param_types import (
     CategoricalParam,
@@ -54,11 +55,18 @@ def problem_from_study(study: Study) -> Problem:
     for fidelity_param in study.definition.search_space.fidelity_params:
         fidelity_params[fidelity_param.name] = fidelity_param.default
 
+    constraints = [ConstraintExpression(c.constraint) for c in study.definition.search_space.constraints]
+
     def interop_eval(config):
         config = config.copy()
         for name, val in config.items():
             if type(val) is list:
                 config[name] = str(val)
+
+        for constraint in constraints:
+            if not constraint.evaluate(config):
+                return math.inf
+
         return study.query(config, fidelity_params)["compute_time"]
 
     return Problem(
