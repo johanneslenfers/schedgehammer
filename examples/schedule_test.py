@@ -19,8 +19,8 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 40
-RUNS = 2
+ITERATIONS = 50
+RUNS = 3
 
 results = []
 
@@ -89,7 +89,7 @@ def get_ansor_baseline() -> float:
 
     # Set search policy and performance measurement options
     tuning_options = auto_scheduler.TuningOptions(
-        num_measure_trials=20,  # Number of measurement trials
+        num_measure_trials=63,  # Number of measurement trials
         measure_callbacks=[auto_scheduler.RecordToFile("matmul.json")],  # Log records
         verbose=2,  # Verbosity level
     )
@@ -112,7 +112,7 @@ def get_ansor_baseline() -> float:
     b_tvm = tvm.nd.array(b_np)
     c_tvm = tvm.nd.array(c_np)
 
-    evaluator = func.time_evaluator(func.entry_name, dev, number=10)
+    evaluator = func.time_evaluator(func.entry_name, dev, number=5)
     exec_time = evaluator(a_tvm, b_tvm, c_tvm).mean
     print("Ansor execution time: %.3f ms" % (exec_time * 1e3))
     return exec_time
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     plt.plot(xs, means, label="Random Search")
     plt.plot(xs, [ansor_baseline] * len(xs), label="Ansor Baseline")
     plt.fill_between(xs, mins, maxs, alpha=0.3)
-    plt.plot(xs, [baseline_score] * len(xs), label="Block Schedule")
+    plt.plot(xs, [baseline_score] * len(xs), label="Baseline")
     plt.plot(
         xs,
         [best_block_schedule] * len(xs),
