@@ -1,5 +1,6 @@
 import csv
 import json
+import math
 import os
 from collections import defaultdict
 from datetime import datetime
@@ -73,15 +74,15 @@ class ArchivedResult:
         best_scores = []
         for run in runs:
             best_scores.append([])
-            best_score = float("inf")
+            best_score = math.inf
             for record in run:
                 if record.score < best_score:
                     best_score = record.score
                 best_scores[-1].append(best_score)
         return best_scores
 
-    def plot(self, output_file) -> None:
-        plt.figure()
+    def plot(self, output_file, title='') -> None:
+        plt.figure(figsize=(10, 6))
         for tuner, runs in self.runs_of_tuners.items():
             zipped = list(zip(*self._get_best_scores(runs)))
             median = []
@@ -93,14 +94,19 @@ class ArchivedResult:
                 median.append(np.median(zipped[i]))
                 lower_bound.append(np.percentile(zipped[i], 50 - 68.27 / 2))
                 upper_bound.append(np.percentile(zipped[i], 50 + 68.27 / 2))
-            plt.plot(xs, median, label=tuner)
-            plt.fill_between(xs, lower_bound, upper_bound, alpha=0.3)
+
+            if tuner == 'pyATF':
+                plt.plot(xs, median, label=tuner, color='tab:brown')
+                plt.fill_between(xs, lower_bound, upper_bound, alpha=0.2, facecolor='tab:brown')
+            else:
+                plt.plot(xs, median, label=tuner)
+                plt.fill_between(xs, lower_bound, upper_bound, alpha=0.2)
 
         plt.xlabel("function evaluations")
-        plt.ylabel("cost")
+        plt.ylabel("cost (s)")
         plt.yscale("log")
-        plt.legend()
-        plt.savefig(output_file)
+        plt.legend(loc='upper right')
+        plt.savefig(output_file, bbox_inches='tight', pad_inches=0.01)
 
 
 def benchmark(
