@@ -17,7 +17,7 @@ from schedgehammer.param_types import (
     IntegerParam,
     PermutationParam,
     RealParam,
-    SwitchParam,
+    BooleanParam,
 )
 
 
@@ -31,7 +31,7 @@ def problem_from_study(study: Study) -> Problem:
         elif type(param) is PermutationInteropt:
             params[param.name] = PermutationParam(values=list(param.default))
         elif type(param) is BooleanInteropt:
-            params[param.name] = SwitchParam()
+            params[param.name] = BooleanParam()
         elif type(param) is IntegerInteropt:
             params[param.name] = IntegerParam(
                 min_val=param.bounds[0],

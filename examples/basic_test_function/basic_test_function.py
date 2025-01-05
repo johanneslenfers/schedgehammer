@@ -18,7 +18,7 @@ from schedgehammer.param_types import (
     OrdinalParam,
     PermutationParam,
     RealParam,
-    SwitchParam,
+    BooleanParam,
 )
 from schedgehammer.problem import Problem
 from schedgehammer.tuner import EvalBudget
@@ -28,7 +28,7 @@ def main():
     problem = Problem(
         "magical example",
         {
-            "magic": SwitchParam(),
+            "magic": BooleanParam(),
             "mana": RealParam(0, 10),
             "level": IntegerParam(1, 100),
             "power": OrdinalParam([1, 2, 4, 8, 16]),

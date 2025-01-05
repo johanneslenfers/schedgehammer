@@ -1,6 +1,8 @@
+import math
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from http.cookiejar import domain_match
 from typing import Generic, TypeVar, Optional
 from numbers import Number
 import itertools
@@ -12,6 +14,20 @@ T = TypeVar("T", bound=ParamValue)
 def clamp(val: Number, min_val: Number, max_val: Number) -> Number:
     return max(min_val, min(val, max_val))
 
+def binary_search(array, v):
+    low = 0
+    high = len(array) - 1
+    while low <= high:
+        mid = (low + high) // 2
+        if array[mid] == v:
+            return mid
+        elif array[mid] < v:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return low
+
+
 
 @dataclass
 class Param(ABC, Generic[T]):
@@ -19,20 +35,38 @@ class Param(ABC, Generic[T]):
     def choose_random(self, current_value: Optional[T] = None) -> T:
         raise NotImplementedError
 
+    def has_manageable_discrete_range(self) -> bool:
+        return False
+
     @abstractmethod
     def get_value_range(self) -> list[T]:
+        """
+        Has to be implemented if has_manageable_discrete_range returns True.
+        """
         raise NotImplementedError
+
+    def choose_random_around_in(self, around_value: T, domain: list[T]):
+        current_index = binary_search(domain, around_value)
+        l = len(domain)
+
+        idx = clamp(
+            round(random.normalvariate(current_index, l / 4)), 0, l - 1
+        )
+        return domain[idx]
 
 
 @dataclass
-class SwitchParam(Param[bool]):
+class BooleanParam(Param[bool]):
     def choose_random(self, current_value: Optional[bool] = None) -> bool:
         if random.random() < 0.5:
             return True
         else:
             return False
 
-    def get_value_range(self) -> bool:
+    def has_manageable_discrete_range(self) -> bool:
+        return True
+
+    def get_value_range(self) -> list[bool]:
         return [True, False]
 
 
@@ -50,6 +84,9 @@ class RealParam(Param[float]):
             return clamp(
                 random.normalvariate(current_value, stddev), self.min_val, self.max_val
             )
+
+    def has_manageable_discrete_range(self) -> bool:
+        return True
 
     def get_value_range(self) -> list[float]:
         return [
@@ -71,10 +108,13 @@ class IntegerParam(Param[int]):
         else:
             stddev = (self.max_val - self.min_val) / 4
             return clamp(
-                int(random.normalvariate(current_value, stddev)),
+                round(random.normalvariate(current_value, stddev)),
                 self.min_val,
                 self.max_val,
             )
+
+    def has_manageable_discrete_range(self) -> bool:
+        return True
 
     def get_value_range(self) -> list[int]:
         return list(range(self.min_val, self.max_val))
@@ -92,11 +132,14 @@ class ExpIntParam(Param[int]):
         else:
             stddev = (self.max_exp - self.min_exp) / 4
             exp = clamp(
-                int(random.normalvariate(current_value, stddev)),
+                round(random.normalvariate(math.log(current_value, self.base), stddev)),
                 self.min_exp,
                 self.max_exp,
             )
             return self.base**exp
+
+    def has_manageable_discrete_range(self) -> bool:
+        return True
 
     def get_value_range(self) -> int:
         # TODO: gucken, wo die parameter nicht als int angelegt werden
@@ -119,9 +162,12 @@ class OrdinalParam(Param[OrdinalParamType]):
             stddev = len(self.values) / 4
             current_idx = self.values.index(current_value)
             idx = clamp(
-                int(random.normalvariate(current_idx, stddev)), 0, len(self.values) - 1
+                round(random.normalvariate(current_idx, stddev)), 0, len(self.values) - 1
             )
             return self.values[idx]
+
+    def has_manageable_discrete_range(self) -> bool:
+        return True
 
     def get_value_range(self) -> list[OrdinalParamType]:
         return self.values.copy()
@@ -133,6 +179,9 @@ class CategoricalParam(Param[str]):
 
     def choose_random(self, _: Optional[str] = None) -> str:
         return random.choice(self.values)
+
+    def has_manageable_discrete_range(self) -> bool:
+        return True
 
     def get_value_range(self) -> list[str]:
         return self.values.copy()
@@ -150,7 +199,7 @@ class PermutationParam(Param[list[int]]):
         else:
             stddev = len(self.values) / 4
             swaps = clamp(
-                int(random.normalvariate(len(self.values) / 2, stddev)),
+                round(random.normalvariate(len(self.values) / 2, stddev)),
                 0,
                 len(self.values) - 1,
             )
@@ -166,15 +215,9 @@ class PermutationParam(Param[list[int]]):
 
             return current_value
 
-    def get_value_range(self) -> list[int]:
+    def has_manageable_discrete_range(self) -> bool:
+        # TODO: maybe only for small len(self.values)?
+        return True
+
+    def get_value_range(self) -> list[list[int]]:
         return [list(p) for p in itertools.permutations(self.values)]
-
-
-TYPE_MAP = {
-    "switch": SwitchParam,
-    "real": RealParam,
-    "integer": IntegerParam,
-    "ordinal": OrdinalParam,
-    "categorical": CategoricalParam,
-    "permutation": PermutationParam,
-}

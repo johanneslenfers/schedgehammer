@@ -7,7 +7,7 @@ from typing import Dict
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
 from schedgehammer.result import EvaluationResult, TuningResult
-from schedgehammer.constraint import Solver, Solver2
+from schedgehammer.constraint import Solver
 
 ParameterConfiguration = Dict[str, ParamValue]
 
@@ -36,7 +36,7 @@ class TimeBudget(Budget):
 
 class TuningAttempt:
     problem: Problem
-    solver: Solver2
+    solver: Solver
     budgets: list[Budget]
     record_of_evaluations: list[EvaluationResult]
     start_time: float

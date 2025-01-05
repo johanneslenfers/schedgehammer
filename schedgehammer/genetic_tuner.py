@@ -18,7 +18,7 @@ class GeneticTuner(Tuner):
         reproduction_size = int(self.population_size * self.reproduction_share)
 
         # initial population
-        initial = [next(attempt.solver.solve()) for _ in range(self.population_size)]
+        initial = [attempt.solver.solve() for _ in range(self.population_size)]
         population = [(ret, attempt.evaluate_config(ret)) for ret in initial]
 
         while attempt.in_budget():
@@ -31,24 +31,22 @@ class GeneticTuner(Tuner):
                 parent_one = random.choice(population[:reproduction_size])[0]
                 parent_two = random.choice(population[:reproduction_size])[0]
 
+                test = {}
+
                 for [k, v1], [_, v2] in zip(parent_one.items(), parent_two.items()):
                     # crossover and / or mutation
                     if random.random() < self.crossover_prob:
-                        attempt.solver.decision_queue.append((k, v1))
+                        test[k] = v1
                     else:
-                        attempt.solver.decision_queue.append((k, v2))
+                        test[k] = v2
 
                     if random.random() < self.mutation_prob:
                         if self.local_mutation:
-                            attempt.solver.decision_queue.append(
-                                (k, attempt.problem.params[k].choose_random(v1))
-                            )
+                            test[k] = attempt.problem.params[k].choose_random(v1)
                         else:
-                            attempt.solver.decision_queue.append(
-                                (k, attempt.problem.params[k].choose_random())
-                            )
+                            test[k] = attempt.problem.params[k].choose_random()
 
-                child = next(attempt.solver.solve())
+                child = attempt.solver.solve(test)
 
                 if not attempt.in_budget():
                     return
