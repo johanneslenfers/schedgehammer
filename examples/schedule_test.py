@@ -8,6 +8,7 @@ import numpy as np
 import tvm
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
+from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
@@ -19,10 +20,21 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 50
+ITERATIONS = 60  # If >63 limit ansors iterations else it will crash
 RUNS = 3
 
 results = []
+ansor_results = []
+
+
+class StoreResultCallback(PythonBasedMeasureCallback):
+    def callback(self, policy, inputs, results):
+        ansor_results.append(float(results[0].costs[0]))
+        for result in results[1:]:
+            cost = float(result.costs[0])
+            ansor_results.append(
+                cost if cost < ansor_results[-1] else ansor_results[-1]
+            )
 
 
 def create_schedule() -> ScheduleEnvironment:
@@ -74,7 +86,7 @@ def finish_schedule(env: ScheduleEnvironment):
     )
 
 
-def get_ansor_baseline() -> float:
+def get_ansor_results():
     @auto_scheduler.register_workload
     def create_task_func():
         k = te.reduce_axis((0, K), "k")
@@ -87,11 +99,13 @@ def get_ansor_baseline() -> float:
     target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(func=create_task_func, target=target)
 
-    # Set search policy and performance measurement options
     tuning_options = auto_scheduler.TuningOptions(
-        num_measure_trials=63,  # Number of measurement trials
-        measure_callbacks=[auto_scheduler.RecordToFile("matmul.json")],  # Log records
-        verbose=2,  # Verbosity level
+        num_measure_trials=ITERATIONS,
+        measure_callbacks=[
+            auto_scheduler.RecordToFile("matmul.json"),
+            StoreResultCallback(),
+        ],
+        verbose=2,
     )
 
     # Begin tuning process
@@ -115,7 +129,9 @@ def get_ansor_baseline() -> float:
     evaluator = func.time_evaluator(func.entry_name, dev, number=5)
     exec_time = evaluator(a_tvm, b_tvm, c_tvm).mean
     print("Ansor execution time: %.3f ms" % (exec_time * 1e3))
-    return exec_time
+    ansor_results[-1] = (
+        exec_time  # Make sure the real execution time is not higher than calculated by ansor
+    )
 
 
 def get_baseline() -> float:
@@ -142,7 +158,6 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
     (kaxis,) = s[C].op.reduce_axis
     ko, ki = s[C].split(kaxis, factor=kfactor)
 
-    # Hoist reduction domain outside the blocking loop
     s[C].reorder(mo, no, ko, ki, mi, ni)
 
     func = tvm.build(
@@ -159,9 +174,8 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
 
 if __name__ == "__main__":
     baseline_score = get_baseline()
-    ansor_baseline = get_ansor_baseline()
     print("Baseline:", baseline_score)
-
+    get_ansor_results()
     tuner = RandomSearch(check_constraints=False)
     param = ScheduleParam(create_schedule, finish_schedule, 1, 5)
     for _ in range(RUNS):
@@ -193,7 +207,7 @@ if __name__ == "__main__":
     xs = range(len(zipped_results))
     plt.figure()
     plt.plot(xs, means, label="Random Search")
-    plt.plot(xs, [ansor_baseline] * len(xs), label="Ansor Baseline")
+    plt.plot(range(len(ansor_results)), ansor_results, label="Ansor Baseline")
     plt.fill_between(xs, mins, maxs, alpha=0.3)
     plt.plot(xs, [baseline_score] * len(xs), label="Baseline")
     plt.plot(
