@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar
+from typing import Any, Callable, ClassVar, Type
 
 import tvm
 from tvm.te import Tensor
@@ -216,12 +216,59 @@ class ScheduleParam(Param[list[Method]]):
     finish_schedule: Callable[[ScheduleEnvironment], tvm.module.Module]
     min_length: int
     max_length: int
-    api_description: list[Method] = field(
+    api_description: list[Type[Method]] = field(
         default_factory=lambda: [Tile, Split, Reorder, Vectorize]
     )
-    terminating_methods: list[Method] = field(default_factory=lambda: [Vectorize])
+    terminating_methods: list[Type[Method]] = field(default_factory=lambda: [Vectorize])
+    genetic_tuning_mode: bool = False
+    current_population: list[tuple[list[Method], float]] = field(default_factory=list)
+    population_size: int = 6
+    elitism_share: float = 0.1
+    reproduction_share: float = 0.3
+    crossover_prob: float = 0.5
+    mutation_prob: float = 0.1
+    local_mutation: bool = False
 
-    def choose_random(self, _=None) -> tvm.module.Module:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.genetic_tuning_mode:
+            for _ in range(self.population_size):
+                env, schedule = self.create_random_schedule()
+                compiled_schedule = self.finish_schedule(env)
+                cost = self.cost_function({"schedule": compiled_schedule})
+                self.current_population.append((schedule, cost))
+
+    def try_appending_method(
+        self,
+        schedule: list[Method],
+        method_candidates: list[Type[Method]],
+        env: ScheduleEnvironment,
+    ) -> tuple[list[Method], list[Type[Method]], Type[Method] | None]:
+        """
+        Tries to append one of the method candidates to the schedule.
+        Returns:
+            - Updated schedule
+            - Updated method candidates
+            - Chosen method type
+        """
+        method = method_candidates.pop(random.randrange(len(method_candidates)))
+        if method.is_possible(schedule, env.axis_pool):
+            method_instance = method.get_random(
+                env.axis_pool, env.schedule[env.computed_arg]
+            )
+            schedule.append(method_instance)
+            if len(schedule) < self.min_length:
+                method_candidates = [
+                    method
+                    for method in self.api_description
+                    if method not in self.terminating_methods
+                ]
+            else:
+                method_candidates = self.api_description.copy()
+            return schedule, method_candidates, method
+        return schedule, method_candidates, None
+
+    def create_random_schedule(self) -> tuple[ScheduleEnvironment, list[Method]]:
         while True:
             env = self.create_schedule()
             schedule: list[Method] = []
@@ -232,25 +279,18 @@ class ScheduleParam(Param[list[Method]]):
                 if method not in self.terminating_methods
             ]
             while len(schedule) < desired_length:
-                method = method_candidates.pop(random.randrange(len(method_candidates)))
-                if method.is_possible(schedule, env.axis_pool):
-                    method_instance = method.get_random(
-                        env.axis_pool, env.schedule[env.computed_arg]
-                    )
-                    schedule.append(method_instance)
-                    if len(schedule) < self.min_length:
-                        method_candidates = [
-                            method
-                            for method in self.api_description
-                            if method not in self.terminating_methods
-                        ]
-                    else:
-                        method_candidates = self.api_description.copy()
-                    if method in self.terminating_methods:
-                        break
+                schedule, method_candidates, method = self.try_appending_method(
+                    schedule, method_candidates, env
+                )
+                if method in self.terminating_methods:
+                    break
                 if not method_candidates:
                     break
             if len(schedule) >= self.min_length:
                 break
+        return env, schedule
+
+    def choose_random(self, _=None) -> tvm.module.Module:
+        env, schedule = self.create_random_schedule()
         _pretty_print_schedule(schedule)
         return self.finish_schedule(env)
