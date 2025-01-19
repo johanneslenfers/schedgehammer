@@ -1,6 +1,7 @@
 import copy
 import math
 import random
+import numpy as np
 from abc import abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -44,12 +45,12 @@ class ConstraintExpression:
         return self.fun(config, functions)
 
     def to_constraint(self):
-        l = list(self.dependencies)
+        deps = list(self.dependencies)
         if len(self.dependencies) == 1:
-            return ConstraintUnOp(l[0], lambda x: self.evaluate({l[0]: x}))
+            return ConstraintUnOp(deps[0], lambda x: self.evaluate({deps[0]: x}))
         elif len(self.dependencies) == 2:
             return ConstraintBinOp(
-                l[0], l[1], lambda x, y: self.evaluate({l[0]: x, l[1]: y})
+                deps[0], deps[1], lambda x, y: self.evaluate({deps[0]: x, deps[1]: y})
             )
         else:
             raise Exception("Unsupported number of dependencies")
@@ -74,17 +75,16 @@ class ConstraintUnOp(Constraint):
     fn: Callable
 
     def filter(self, variables: dict[str, list[any]]) -> FilterResult:
-        size = len(variables[self.var])
+        size = variables[self.var].shape[0]
 
-        new_domain = variables[self.var]
-        new_domain = list(filter(lambda x: self.fn(x), new_domain))
+        new_domain = variables[self.var][self.fn(variables[self.var])]
 
-        if len(new_domain) == 0:
+        if new_domain.shape[0] == 0:
             return FilterResult.Empty
 
-        variables[self.var] = list(new_domain)
+        variables[self.var] = new_domain
 
-        if size > len(variables[self.var]):
+        if size > variables[self.var].shape[0]:
             return FilterResult.Changed
         else:
             return FilterResult.Unchanged
@@ -102,31 +102,35 @@ class ConstraintBinOp(Constraint):
         Returns True if changed, False if no valid values remain,
         None if nothing changed
         """
-        size = len(variables[self.var1]) + len(variables[self.var2])
+        size = variables[self.var1].shape[0] + variables[self.var2].shape[0]
 
-        new_domain2 = set()
+        new_domain2 = []
         for i in variables[self.var1]:
-            new_domain2 = new_domain2.union(
-                filter(lambda x: self.fn(i, x), variables[self.var2])
+            new_domain2 = np.unique(
+                np.append(
+                    new_domain2, variables[self.var2][self.fn(i, variables[self.var2])]
+                )
             )
 
-        if len(new_domain2) == 0:
+        if new_domain2.shape[0] == 0:
             return FilterResult.Empty
 
-        variables[self.var2] = list(new_domain2)
+        variables[self.var2] = new_domain2
 
-        new_domain1 = set()
+        new_domain1 = []
         for i in variables[self.var2]:
-            new_domain1 = new_domain1.union(
-                filter(lambda x: self.fn(x, i), variables[self.var1])
+            new_domain1 = np.unique(
+                np.append(
+                    new_domain1, variables[self.var1][self.fn(variables[self.var1], i)]
+                )
             )
 
-        if len(new_domain1) == 0:
+        if new_domain1.shape[0] == 0:
             return FilterResult.Empty
 
-        variables[self.var1] = list(new_domain1)
+        variables[self.var1] = new_domain1
 
-        if size > len(variables[self.var1]) + len(variables[self.var2]):
+        if size > variables[self.var1].shape[0] + variables[self.var2].shape[0]:
             return FilterResult.Changed
         else:
             return FilterResult.Unchanged
@@ -149,12 +153,18 @@ class Solver:
         """
         if len(self.decision_queue) > 0:
             var, val = self.decision_queue.pop()
+
+            if type(val) is list:
+                val = np.void(
+                    tuple(val), dtype=[(str(i), np.int32) for i in range(len(val))]
+                )
+
             # only accept if value is still in domain
-            if len(variables[var]) > 1 and val in variables[var]:
+            if variables[var].shape[0] > 1 and val in variables[var]:
                 return (var, val)
 
         var, domain = next(
-            filter(lambda x: len(x[1]) > 1, variables.items()), (None, None)
+            filter(lambda x: x[1].shape[0] > 1, variables.items()), (None, None)
         )
 
         if var is not None:
@@ -185,7 +195,8 @@ class Solver:
         value from search space
         """
         c = copy.deepcopy(variables)
-        c[var] = list(filter(lambda x: apply == (x == val), c[var]))
+        c[var] = c[var][apply == (c[var] == val)]
+
         yield from self.dfs(c)
 
     def dfs(self, variables: Variables):
@@ -195,7 +206,10 @@ class Solver:
         if self.fix_point(variables):
             var, val = self.make_decision(variables)
             if var is None:
-                yield {k: min(v) for k, v in variables.items()}
+                yield {
+                    k: list(v[0]) if isinstance(v[0], np.void) else v[0]
+                    for k, v in variables.items()
+                }
             else:
                 yield from self.apply_decision(variables, var, val, True)
                 yield from self.apply_decision(variables, var, val, False)
