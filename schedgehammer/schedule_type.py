@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import random
 import sys
@@ -441,8 +442,8 @@ class ScheduleParam(Param[Any]):
         default_factory=lambda: []  # Vectorize
     )
     use_genetic_algorithm_internally: bool = False
-    population_size: int = 10
-    elitism_share: float = 0.2
+    population_size: int = 5
+    elitism_share: float = 0.3
     reproduction_share: float = 0.5
     crossover_prob: float = 0.5
     additional_mutation_prob: float = 0.1
@@ -520,16 +521,20 @@ class ScheduleParam(Param[Any]):
             new_population = self.current_population[:elitism_size]
             for _ in range(self.population_size - elitism_size):
                 if random.random() < self.crossover_prob:
-                    parent_one = random.choice(
-                        self.current_population[:reproduction_size]
-                    )[0]
-                    parent_two = random.choice(
-                        [
-                            element
-                            for element in self.current_population[:reproduction_size]
-                            if element[0] != parent_one
-                        ]
-                    )[0]
+                    parent_one = copy.deepcopy(
+                        random.choice(self.current_population[:reproduction_size])[0]
+                    )
+                    parent_two = copy.deepcopy(
+                        random.choice(
+                            [
+                                element
+                                for element in self.current_population[
+                                    :reproduction_size
+                                ]
+                                if element[0] != parent_one
+                            ]
+                        )[0]
+                    )
                     if random.random() < 0.5:
                         parent_one, parent_two = parent_two, parent_one
                     parent_one.meta.append("CROSSOVER")
