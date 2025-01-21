@@ -12,7 +12,7 @@ from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
+from schedgehammer.schedule_type import ScheduleEnvironment, ScheduleParam
 from schedgehammer.tuner import EvalBudget
 
 M = 512
@@ -49,7 +49,7 @@ class StoreResultCallback(PythonBasedMeasureCallback):
                 ansor_results[-1].append(ansor_results[-1][-1])
 
 
-def create_schedule() -> ScheduleTree:
+def create_schedule() -> ScheduleEnvironment:
     k = te.reduce_axis((0, K), "k")
     A = te.placeholder((M, K), name="A")
     B = te.placeholder((K, N), name="B")
@@ -58,15 +58,12 @@ def create_schedule() -> ScheduleTree:
     # Default schedule
     s = te.create_schedule(C.op)
 
-    tree = ScheduleTree(
-        tvm_schedule=s,
-        computed_tensor=C,
-        static_tensors=[A, B],
+    return ScheduleEnvironment(
+        schedule=s,
+        static_args=[A, B],
+        computed_arg=C,
+        axis_pool=list(C.op.axis) + list(C.op.reduce_axis),
     )
-    tree.add_original_axis(C.op.axis[0])
-    tree.add_original_axis(C.op.axis[1])
-    tree.add_original_axis(C.op.reduce_axis[0])
-    return tree
 
 
 def cost_function(config):
@@ -86,6 +83,8 @@ def cost_function(config):
     assert np.allclose(
         c_numpyfied, correct_answer
     )  # test if same shape, elements have close enough values
+
+    print("Result:", result)
     if not results[-1] or result.mean < results[-1][-1]:
         results[-1].append(result.mean)
     else:
@@ -93,9 +92,9 @@ def cost_function(config):
     return result.mean
 
 
-def finish_schedule(tree: ScheduleTree):
+def finish_schedule(env: ScheduleEnvironment):
     return tvm.build(
-        tree.tvm_schedule, tree.static_tensors + [tree.computed_tensor], name="anything"
+        env.schedule, env.static_args + [env.computed_arg], name="anything"
     )
 
 
@@ -188,17 +187,13 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
 
 
 if __name__ == "__main__":
+    baseline_score = get_baseline()
+    print("Baseline:", baseline_score)
+    get_ansor_results()
     tuner = RandomSearch(check_constraints=False)
-    results.append([])
-    param = ScheduleParam(
-        create_schedule,
-        finish_schedule,
-        cost_function,
-        2,
-        10,
-        use_genetic_algorithm_internally=True,
-    )
+    param = ScheduleParam(create_schedule, finish_schedule, 1, 5)
     for _ in range(RUNS):
+        results.append([])
         tuner.tune(
             problem=Problem(
                 "schedge",
@@ -209,9 +204,6 @@ if __name__ == "__main__":
             budgets=[EvalBudget(ITERATIONS)],
         )
 
-    baseline_score = get_baseline()
-    print("Baseline:", baseline_score)
-    get_ansor_results()
     best_block_schedule = float("inf")
     for bn_exp in range(1, 10):
         for kfactor_exp in range(1, 10):
