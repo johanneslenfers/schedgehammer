@@ -310,26 +310,10 @@ class ScheduleTree:
         return id(self) == id(other)
 
     def __str__(self):
-        """
-        Print the tree by doing bfs
-        """
         result = ["--- Schedule Tree ---"]
-        queue = self.original_axes.copy()
-        visited = set()
-
-        while queue:
-            node = queue.pop(0)
-            if id(node) in visited:
-                continue
-            visited.add(id(node))
-
-            if isinstance(node, AxisNode):
-                result.append(str(node))
-                if node.processed_in:
-                    queue.append(node.processed_in)
-            elif isinstance(node, OperationNode):
-                result.append(str(node))
-                queue.extend(node.output_axes)
+        nodes = self.get_topological_order(operations_only=False)
+        for node in nodes:
+            result.append(str(node))
         result.append("--- End of Schedule Tree ---")
         return "\n".join(result)
 
@@ -411,7 +395,7 @@ class AxisNode(Node):
         return [self.processed_in] if self.processed_in else []
 
     def __str__(self):
-        return f"({self.id} | {self.axis.var.name} | {self.processed_in.operation.name if self.processed_in else 'None'})"
+        return self.axis.var.name
 
 
 @dataclass
@@ -425,7 +409,7 @@ class OperationNode:
         return self.output_axes
 
     def __str__(self):
-        return f"[{self.operation.name}|{'-'.join([str(axis.id if isinstance(axis, AxisNode) else 'all') for axis in self.input_axes.values()])}|{'-'.join([str(axis.id) for axis in self.output_axes])}]"
+        return f"[{self.operation.name}|{'-'.join([str(axis) if isinstance(axis, AxisNode) else 'all' for axis in self.input_axes.values()])}|{'-'.join([str(axis) for axis in self.output_axes])}]"
 
 
 @dataclass
@@ -449,6 +433,7 @@ class ScheduleParam(Param[Any]):
     additional_mutation_prob: float = 0.1
     local_mutation: bool = False
     current_population: list[tuple[ScheduleTree, float]] = field(default_factory=list)
+    genetic_algorithm_callback: Callable[[ScheduleTree, float], None] | None = None
 
     def __post_init__(self, *args, **kwargs):
         if self.use_genetic_algorithm_internally:
@@ -512,9 +497,7 @@ class ScheduleParam(Param[Any]):
 
     def choose_random(self, current_value=None):
         if not self.use_genetic_algorithm_internally:
-            raise NotImplementedError(
-                "This actually should be implemented, skipped for now"
-            )
+            return self.finish_schedule(self.create_random_schedule())
         else:
             elitism_size = int(self.population_size * self.elitism_share)
             reproduction_size = int(self.population_size * self.reproduction_share)
@@ -567,6 +550,8 @@ class ScheduleParam(Param[Any]):
                         {"schedule": self.finish_schedule(random_schedule)}
                     )
                     new_population.append((random_schedule, cost))
+            if self.genetic_algorithm_callback:
+                self.genetic_algorithm_callback(*new_population[-1])
             self.current_population = sorted(new_population, key=lambda x: x[1])
             print([schedule[1] for schedule in self.current_population])
             return self.finish_schedule(self.current_population[0][0])
