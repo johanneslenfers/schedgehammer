@@ -17,7 +17,7 @@ from tvm.tir.expr import IterVar as TvmAxis
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from schedgehammer.param_types import ExpIntParam, Param, ParamValue
+from schedgehammer.param_types import ExpIntParam, IntegerParam, Param, ParamValue
 
 
 @dataclass
@@ -60,7 +60,11 @@ class Operation:
                     non_consumed_axes_nodes.append(copied_axis)
                 param_val: list[TvmAxis] = [axis.axis for axis in all_axes]
             elif isinstance(param_type, TvmAxisParam):
-                param_val: AxisNode = all_axes.pop(random.randrange(len(all_axes)))
+                if param_type.force_inner:
+                    param_val = max(all_axes, key=lambda x: x.id)
+                    all_axes.remove(param_val)
+                else:
+                    param_val: AxisNode = all_axes.pop(random.randrange(len(all_axes)))
                 operation_node.input_axes[param_name] = param_val
                 if not param_type.consuming:
                     copied_axis = AxisNode(param_val.id, param_val.axis, None)
@@ -115,6 +119,18 @@ REORDER = Operation(
     "reorder",
     lambda t, args, kwargs: t.reorder(*args, **kwargs),
     {"": TvmAxisPoolPermutationParam()},
+)
+
+UNROLL = Operation(
+    "unroll",
+    lambda t, args, kwargs: t.unroll(*args, **kwargs),
+    {"": TvmAxisParam(consuming=True, force_inner=True)},
+)
+
+PARALLEL = Operation(
+    "parallel",
+    lambda t, args, kwargs: t.parallel(*args, **kwargs),
+    {"": TvmAxisParam(consuming=True, force_inner=True)},
 )
 # VECTORIZE = Operation(
 #     "vectorize",
@@ -336,6 +352,12 @@ class ScheduleTree:
 
         return stack
 
+    def get_innermost_axis(self) -> AxisNode:
+        """
+        Get Axis Node with highest id
+        """
+        return max(self.get_leave_axes(), key=lambda x: x.id)
+
     def randomly_merge_with_other_schedule(
         self,
         other_schedule: ScheduleTree,
@@ -415,15 +437,15 @@ class OperationNode:
 @dataclass
 class ScheduleParam(Param[Any]):
     create_schedule: Callable[[None], ScheduleTree]
-    finish_schedule: Callable[[ScheduleTree], Any]
-    cost_function: Callable[[ScheduleTree], float]
+    finish_schedule: Callable[[ScheduleTree], tvm.module.Module]
+    cost_function: Callable[[tvm.module.Module], float]
     min_length: int
     max_length: int
     api_description: list[Operation] = field(
-        default_factory=lambda: [TILE, SPLIT, REORDER]
+        default_factory=lambda: [TILE, SPLIT, REORDER, UNROLL]
     )
     terminating_methods: list[Operation] = field(
-        default_factory=lambda: []  # Vectorize
+        default_factory=lambda: [PARALLEL]  # Vectorize
     )
     use_genetic_algorithm_internally: bool = False
     population_size: int = 5
@@ -438,13 +460,14 @@ class ScheduleParam(Param[Any]):
     def __post_init__(self, *args, **kwargs):
         if self.use_genetic_algorithm_internally:
             for _ in range(self.population_size):
-                schedule_tree = self.create_random_schedule()
-                cost = self.cost_function(
-                    {"schedule": self.finish_schedule(schedule_tree)}
-                )
+                schedule_tree, cost = self.get_random_schedule_and_cost()
                 self.current_population.append((schedule_tree, cost))
-        self.current_population = sorted(self.current_population, key=lambda x: x[1])
-        print([schedule[1] for schedule in self.current_population])
+                if self.genetic_algorithm_callback:
+                    self.genetic_algorithm_callback(schedule_tree, cost)
+            self.current_population = sorted(
+                self.current_population, key=lambda x: x[1]
+            )
+            print([schedule[1] for schedule in self.current_population])
 
     def try_appending_method(
         self,
@@ -471,8 +494,20 @@ class ScheduleParam(Param[Any]):
                 method_candidates = self.api_description.copy()
             return schedule_tree, method_candidates, method
         except Exception:
-            print(traceback.format_exc())
+            print(f"\033[93mCouldn't apply {method.name}\033[0m")
         return schedule_tree, method_candidates, None
+
+    def get_random_schedule_and_cost(self) -> tuple[ScheduleTree, float]:
+        while True:
+            try:
+                schedule_tree = self.create_random_schedule()
+                cost = self.cost_function(
+                    {"schedule": self.finish_schedule(schedule_tree)}
+                )
+                break
+            except Exception as e:
+                print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
+        return schedule_tree, cost
 
     def create_random_schedule(self) -> ScheduleTree:
         while True:
@@ -497,7 +532,11 @@ class ScheduleParam(Param[Any]):
 
     def choose_random(self, current_value=None):
         if not self.use_genetic_algorithm_internally:
-            return self.finish_schedule(self.create_random_schedule())
+            while True:
+                try:
+                    return self.finish_schedule(self.create_random_schedule())
+                except Exception as e:
+                    print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
         else:
             elitism_size = int(self.population_size * self.elitism_share)
             reproduction_size = int(self.population_size * self.reproduction_share)
@@ -540,67 +579,20 @@ class ScheduleParam(Param[Any]):
                             if method in self.terminating_methods:
                                 break
 
-                    cost = self.cost_function(
-                        {"schedule": self.finish_schedule(parent_one)}
-                    )
-                    new_population.append((parent_one, cost))
+                    try:
+                        cost = self.cost_function(
+                            {"schedule": self.finish_schedule(parent_one)}
+                        )
+                        new_population.append((parent_one, cost))
+                    except Exception as e:
+                        print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
+                        random_schedule, cost = self.get_random_schedule_and_cost()
+                        new_population.append((random_schedule, cost))
                 else:
-                    random_schedule = self.create_random_schedule()
-                    cost = self.cost_function(
-                        {"schedule": self.finish_schedule(random_schedule)}
-                    )
+                    random_schedule, cost = self.get_random_schedule_and_cost()
                     new_population.append((random_schedule, cost))
-            if self.genetic_algorithm_callback:
-                self.genetic_algorithm_callback(*new_population[-1])
+                if self.genetic_algorithm_callback:
+                    self.genetic_algorithm_callback(*new_population[-1])
             self.current_population = sorted(new_population, key=lambda x: x[1])
             print([schedule[1] for schedule in self.current_population])
             return self.finish_schedule(self.current_population[0][0])
-
-
-# if __name__ == "__main__":
-#     M = 512
-#     K = 512
-#     N = 512
-
-#     def create_schedule() -> ScheduleTree:
-#         k = te.reduce_axis((0, K), "k")
-#         A = te.placeholder((M, K), name="A")
-#         B = te.placeholder((K, N), name="B")
-#         C = te.compute((M, N), lambda m, n: te.sum(A[m, k] * B[k, n], axis=k), name="C")
-
-#         # Default schedule
-#         s = te.create_schedule(C.op)
-#         schedule_tree = ScheduleTree(s, C)
-#         schedule_tree.add_original_axis(C.op.axis[0])
-#         schedule_tree.add_original_axis(C.op.axis[1])
-#         schedule_tree.add_original_axis(C.op.reduce_axis[0])
-#         return schedule_tree
-
-#     schedule_tree = create_schedule()
-#     print(schedule_tree)
-#     REORDER.apply_random_on_tree(schedule_tree)
-#     SPLIT.apply_random_on_tree(schedule_tree)
-#     TILE.apply_random_on_tree(schedule_tree)
-#     print(schedule_tree)
-#     print(schedule_tree)
-#     print(schedule_tree)
-
-#     param = ScheduleParam(create_schedule, None, None, 2, 5)
-#     for i in range(10):
-#         print("Random tree", i)
-#         st = param.create_random_schedule()
-#         print(st)
-#         print(
-#             [
-#                 node.operation.name
-#                 for node in st.get_topological_order()
-#                 if isinstance(node, OperationNode)
-#             ]
-#         )
-#         print("Trying to reapply schedule saved in tree to new schedule")
-#         fresh_tree = create_schedule()
-#         st.reapply_schedule(
-#             fresh_tree.tvm_schedule,
-#             fresh_tree.computed_tensor,
-#             [axis_node.axis for axis_node in fresh_tree.original_axes],
-#         )
