@@ -132,11 +132,11 @@ PARALLEL = Operation(
     lambda t, args, kwargs: t.parallel(*args, **kwargs),
     {"": TvmAxisParam(consuming=True, force_inner=True)},
 )
-# VECTORIZE = Operation(
-#     "vectorize",
-#     lambda t: t.vectorize,
-#     {"": TvmAxisParam(consuming=True, force_inner=True)},
-# )
+VECTORIZE = Operation(
+    "vectorize",
+    lambda t: t.vectorize,
+    {"": TvmAxisParam(consuming=True, force_inner=True)},
+)
 
 
 @dataclass
@@ -442,7 +442,7 @@ class ScheduleParam(Param[Any]):
     min_length: int
     max_length: int
     api_description: list[Operation] = field(
-        default_factory=lambda: [TILE, SPLIT, REORDER, UNROLL]
+        default_factory=lambda: [TILE, SPLIT, REORDER, PARALLEL]
     )
     terminating_methods: list[Operation] = field(
         default_factory=lambda: [PARALLEL]  # Vectorize
