@@ -1,11 +1,15 @@
 import json
 import os
 import sys
+import threading
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+import concurrent.futures
+
 import numpy
 import numpy as np
+import stopit
 import tvm
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
@@ -23,8 +27,8 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 15  # If >63 limit ansors iterations else it will crash
-RUNS = 6
+ITERATIONS = 25  # If >63 limit ansors iterations else it will crash
+RUNS = 3
 
 results_genetic = []
 results_random = []
@@ -82,25 +86,46 @@ def create_cost_function(result_list):
         b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
         c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
 
-        func = config["schedule"]
+        func: tvm.module.Module = config["schedule"]
         evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
-        result = evaluator(a, b, c)
-        # Check if calculation is correct
-        correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-        c_numpyfied = c.asnumpy()
-        assert np.allclose(
-            c_numpyfied, correct_answer
-        )  # test if same shape, elements have close enough values
-        if not result_list[-1] or result.mean < result_list[-1][-1]:
-            result_list[-1].append(result.mean)
+
+        # result = evaluator(a, b, c).mean
+        # correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+        # c_numpyfied = c.asnumpy()
+        # assert np.allclose(
+        #     c_numpyfied, correct_answer
+        # )  # test if same shape, elements have close enough values
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:  # noqa: F821
+            future = executor.submit(evaluator, a, b, c)
+            try:
+                result = future.result(timeout=6).mean  # 3 second timeout
+                # Check if calculation is correct
+                correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+                c_numpyfied = c.asnumpy()
+                assert np.allclose(
+                    c_numpyfied, correct_answer
+                )  # test if same shape, elements have close enough values
+            except concurrent.futures.TimeoutError:
+                print("\033[93mEvaluation timed out\033[0m")
+                result = float("inf")
+            except AssertionError:
+                print("\033[93mInvalid Result Matrix\033[0m")
+                result = float("inf")
+            # TODO: Leaving the executor often hangs. Find out why
+
+        if not result_list[-1] or result < result_list[-1][-1]:
+            result_list[-1].append(result)
         else:
             result_list[-1].append(result_list[-1][-1])
-        return result.mean
+        print("COST:", result)
+        return result
 
     return cost_function
 
 
 def finish_schedule(tree: ScheduleTree):
+    print(tree)
     return tvm.build(
         tree.tvm_schedule, tree.static_tensors + [tree.computed_tensor], name="anything"
     )
@@ -195,7 +220,7 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
 
 
 if __name__ == "__main__":
-    POPULATION_SIZE = 5
+    POPULATION_SIZE = 10
     ELITISM_SHARE = 0.3
     tuner = RandomSearch(check_constraints=False)
     all_genetically_generated_trees = []
