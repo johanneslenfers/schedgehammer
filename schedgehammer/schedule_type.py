@@ -6,39 +6,38 @@ import random
 import sys
 import traceback
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, Generator, Type
-
-import tvm
-from tvm import te
-from tvm.te import Tensor
-from tvm.tir.expr import IterVar as TvmAxis
+from typing import Any, Callable, Generic, Type, TypeVar
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from schedgehammer.param_types import ExpIntParam, IntegerParam, Param, ParamValue
+from schedgehammer.param_types import Param, ParamValue
+
+Schedule = TypeVar("Schedule")
+Axis = TypeVar("Axis")
+Tensor = TypeVar("Tensor")
+CompiledSchedule = TypeVar("CompiledSchedule")
 
 
 @dataclass
-class TvmAxisParam:
+class AxisParam:
     consuming: bool  # Wether or not the axis gets removed from the pool
     force_inner: bool = False  # Wether or not it has to be the innermost axis
 
 
 @dataclass
-class TvmAxisPoolPermutationParam:
+class AxisPoolPermutationParam:
     pass
 
 
-MethodParamType = TvmAxisParam | TvmAxisPoolPermutationParam | Param
+MethodParamType = AxisParam | AxisPoolPermutationParam | Param
 
 
 @dataclass
-class Operation:
+class Operation(Generic[Axis, Tensor]):
     name: str
-    tvm_operation: Callable[
-        [Tensor, list, dict], list[TvmAxis]
+    compiler_operation: Callable[
+        [Tensor, list, dict], list[Axis]
     ]  # Pass tensor, get back operation to call with the generated args
     params: dict[str, MethodParamType]
 
@@ -46,20 +45,20 @@ class Operation:
         operation_node = OperationNode(self, {}, {}, [])
         non_consumed_axes_nodes = []
         generated_axes_nodes = []
-        tvm_args = {}
+        compiler_args = {}
         all_axes: list[AxisNode] = schedule_tree.get_leave_axes()
         for param_name, param_type in self.params.items():
             if isinstance(param_type, Param):
                 param_val = param_type.choose_random()
                 operation_node.args[param_name] = param_val
-            elif isinstance(param_type, TvmAxisPoolPermutationParam):
+            elif isinstance(param_type, AxisPoolPermutationParam):
                 operation_node.input_axes[param_name] = all_axes.copy()
                 random.shuffle(all_axes)
                 for axis_node in all_axes:
                     copied_axis = AxisNode(axis_node.id, axis_node.axis, None)
                     non_consumed_axes_nodes.append(copied_axis)
-                param_val: list[TvmAxis] = [axis.axis for axis in all_axes]
-            elif isinstance(param_type, TvmAxisParam):
+                param_val: list[Axis] = [axis.axis for axis in all_axes]
+            elif isinstance(param_type, AxisParam):
                 if param_type.force_inner:
                     param_val = max(all_axes, key=lambda x: x.id)
                     all_axes.remove(param_val)
@@ -70,18 +69,20 @@ class Operation:
                     copied_axis = AxisNode(param_val.id, param_val.axis, None)
                     non_consumed_axes_nodes.append(copied_axis)
                 param_val = param_val.axis
-            tvm_args[param_name] = param_val
+            compiler_args[param_name] = param_val
         # Operation payload is ready, now call it
-        tensor = schedule_tree.tvm_schedule[schedule_tree.computed_tensor]
-        if "" in tvm_args.keys():
+        tensor = schedule_tree.schedule[schedule_tree.computed_tensor]
+        if "" in compiler_args.keys():
             # Not a kwarg, but a positional arg
-            new_axes = self.tvm_operation(
+            new_axes = self.compiler_operation(
                 tensor,
-                tvm_args[""] if isinstance(tvm_args[""], list) else [tvm_args[""]],
+                compiler_args[""]
+                if isinstance(compiler_args[""], list)
+                else [compiler_args[""]],
                 {},
             )
         else:
-            new_axes = self.tvm_operation(tensor, [], tvm_args)
+            new_axes = self.compiler_operation(tensor, [], compiler_args)
         # Create operation node and new axis nodes for the generated axes and put them in the tree
         for axis in new_axes if new_axes else []:
             generated_axes_nodes.append(AxisNode(schedule_tree.max_id + 1, axis, None))
@@ -97,57 +98,15 @@ class Operation:
                     axis_node.processed_in = operation_node
 
 
-TILE = Operation(
-    "tile",
-    lambda t, args, kwargs: t.tile(*args, **kwargs),
-    {
-        "x_parent": TvmAxisParam(consuming=True),
-        "y_parent": TvmAxisParam(consuming=True),
-        "x_factor": ExpIntParam(2, min_exp=1, max_exp=8),
-        "y_factor": ExpIntParam(2, min_exp=1, max_exp=8),
-    },
-)
-SPLIT = Operation(
-    "split",
-    lambda t, args, kwargs: t.split(*args, **kwargs),
-    {
-        "parent": TvmAxisParam(consuming=True),
-        "factor": ExpIntParam(2, min_exp=1, max_exp=8),
-    },
-)
-REORDER = Operation(
-    "reorder",
-    lambda t, args, kwargs: t.reorder(*args, **kwargs),
-    {"": TvmAxisPoolPermutationParam()},
-)
-
-UNROLL = Operation(
-    "unroll",
-    lambda t, args, kwargs: t.unroll(*args, **kwargs),
-    {"": TvmAxisParam(consuming=True, force_inner=True)},
-)
-
-PARALLEL = Operation(
-    "parallel",
-    lambda t, args, kwargs: t.parallel(*args, **kwargs),
-    {"": TvmAxisParam(consuming=True, force_inner=True)},
-)
-VECTORIZE = Operation(
-    "vectorize",
-    lambda t: t.vectorize,
-    {"": TvmAxisParam(consuming=True, force_inner=True)},
-)
-
-
 @dataclass
-class ScheduleTree:
+class ScheduleTree(Generic[Schedule, Axis, Tensor]):
     """
     Rules of the schedule tree:
     - Each AxisNode can only be processed once. If the operation is not consuming,
     create a new axisNode with the same id outgoing from the operation.
     """
 
-    tvm_schedule: tvm.schedule.Schedule
+    schedule: Schedule
     computed_tensor: Tensor
     static_tensors: list[Tensor]
     original_axes: list[AxisNode] = field(default_factory=lambda: [])
@@ -186,18 +145,18 @@ class ScheduleTree:
 
     def reapply_schedule(
         self,
-        fresh_tvm_schedule: tvm.schedule.Schedule,
+        fresh_schedule: Schedule,
         fresh_tensor: Tensor,
         fresh_static_tensors: list[Tensor],
-        fresh_axes: list[TvmAxis],
+        fresh_axes: list[Axis],
     ):
         """
         After modifying the tree, reapply the schedule.
         """
         self.static_tensors = fresh_static_tensors
-        self.tvm_schedule = fresh_tvm_schedule
+        self.schedule = fresh_schedule
         self.computed_tensor = fresh_tensor
-        tensor = self.tvm_schedule[self.computed_tensor]
+        tensor = self.schedule[self.computed_tensor]
         for i, axis in enumerate(fresh_axes):
             self.original_axes[i].axis = axis
         topological_order = self.get_topological_order()
@@ -208,23 +167,23 @@ class ScheduleTree:
             - For the output nodes of each operation node the leftmost nodes will be the
             non-consumed axes nodes.
             """
-            tvm_args = node.args.copy()
+            compiler_args = node.args.copy()
             for arg_name, arg_val in node.input_axes.items():
-                tvm_args[arg_name] = (
-                    arg_val.axis  # The tvm axis of the node
+                compiler_args[arg_name] = (
+                    arg_val.axis  # The axis of the node
                     if isinstance(arg_val, AxisNode)  # If it is a single axis
                     else [axis_node.axis for axis_node in arg_val]  # Else the axis for
                     # each node in the list
                 )
-            if "" in tvm_args.keys():
+            if "" in compiler_args.keys():
                 # Not a kwarg, but a positional arg
                 try:
                     new_axes = (
-                        node.operation.tvm_operation(
+                        node.operation.compiler_operation(
                             tensor,
-                            tvm_args[""]
-                            if isinstance(tvm_args[""], list)
-                            else [tvm_args[""]],
+                            compiler_args[""]
+                            if isinstance(compiler_args[""], list)
+                            else [compiler_args[""]],
                             {},
                         )
                         or []
@@ -234,7 +193,10 @@ class ScheduleTree:
                     print(traceback.format_exc())
             else:
                 try:
-                    new_axes = node.operation.tvm_operation(tensor, [], tvm_args) or []
+                    new_axes = (
+                        node.operation.compiler_operation(tensor, [], compiler_args)
+                        or []
+                    )
                 except Exception as e:
                     print(self.meta)
                     print(traceback.format_exc())
@@ -256,7 +218,7 @@ class ScheduleTree:
             ):
                 generated_axis_node.axis = new_axes[i]
 
-    def add_original_axis(self, axis: TvmAxis):
+    def add_original_axis(self, axis: Axis):
         self.original_axes.append(AxisNode(self.max_id + 1, axis, None))
         self.max_id += 1
 
@@ -361,10 +323,10 @@ class ScheduleTree:
     def randomly_merge_with_other_schedule(
         self,
         other_schedule: ScheduleTree,
-        fresh_tvm_schedule: tvm.schedule.Schedule,
+        fresh_schedule: Schedule,
         fresh_tensor: Tensor,
         fresh_static_tensors: list[Tensor],
-        fresh_axes: list[TvmAxis],
+        fresh_axes: list[Axis],
         max_legnth: int,
     ):
         """
@@ -390,7 +352,7 @@ class ScheduleTree:
         self._do_bfs(node_operaton, start_node=random_node)
         # TODO: Continue here, this causes bugs
         self.reapply_schedule(
-            fresh_tvm_schedule, fresh_tensor, fresh_static_tensors, fresh_axes
+            fresh_schedule, fresh_tensor, fresh_static_tensors, fresh_axes
         )
         to_be_added = other_schedule.get_topological_order()
         start_index = random.randint(0, len(topological_order) - 1)
@@ -408,9 +370,9 @@ class Node(ABC):
 
 
 @dataclass
-class AxisNode(Node):
+class AxisNode(Node, Generic[Axis]):
     id: int
-    axis: TvmAxis
+    axis: Axis
     processed_in: OperationNode | None = None
 
     def get_children(self) -> list[Node]:
@@ -435,18 +397,14 @@ class OperationNode:
 
 
 @dataclass
-class ScheduleParam(Param[Any]):
+class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
     create_schedule: Callable[[None], ScheduleTree]
-    finish_schedule: Callable[[ScheduleTree], tvm.module.Module]
-    cost_function: Callable[[tvm.module.Module], float]
+    finish_schedule: Callable[[ScheduleTree], CompiledSchedule]
+    cost_function: Callable[[CompiledSchedule], float]
     min_length: int
     max_length: int
-    api_description: list[Operation] = field(
-        default_factory=lambda: [TILE, SPLIT, REORDER, PARALLEL]
-    )
-    terminating_methods: list[Operation] = field(
-        default_factory=lambda: [PARALLEL]  # Vectorize
-    )
+    api_description: list[Operation]
+    terminating_methods: list[Operation]
     use_genetic_algorithm_internally: bool = False
     population_size: int = 5
     elitism_share: float = 0.3
@@ -563,7 +521,7 @@ class ScheduleParam(Param[Any]):
                     fresh_tree = self.create_schedule()
                     parent_one.randomly_merge_with_other_schedule(
                         parent_two,
-                        fresh_tree.tvm_schedule,
+                        fresh_tree.schedule,
                         fresh_tree.computed_tensor,
                         fresh_tree.static_tensors,
                         [axis.axis for axis in fresh_tree.original_axes],

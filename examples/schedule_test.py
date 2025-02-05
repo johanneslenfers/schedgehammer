@@ -15,11 +15,10 @@ from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
+from examples.tvm_api import REORDER, SPLIT, TILE
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
 from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
-from schedgehammer.schedule_type_old import ScheduleEnvironment
-from schedgehammer.schedule_type_old import ScheduleParam as ScheduleParamOld
 from schedgehammer.tuner import EvalBudget
 
 M = 512
@@ -67,7 +66,7 @@ def create_schedule() -> ScheduleTree:
     s = te.create_schedule(C.op)
 
     tree = ScheduleTree(
-        tvm_schedule=s,
+        schedule=s,
         computed_tensor=C,
         static_tensors=[A, B],
     )
@@ -89,30 +88,30 @@ def create_cost_function(result_list):
         func: tvm.module.Module = config["schedule"]
         evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
 
-        # result = evaluator(a, b, c).mean
-        # correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-        # c_numpyfied = c.asnumpy()
-        # assert np.allclose(
-        #     c_numpyfied, correct_answer
-        # )  # test if same shape, elements have close enough values
+        result = evaluator(a, b, c).mean
+        correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+        c_numpyfied = c.asnumpy()
+        assert np.allclose(
+            c_numpyfied, correct_answer
+        )  # test if same shape, elements have close enough values
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:  # noqa: F821
-            future = executor.submit(evaluator, a, b, c)
-            try:
-                result = future.result(timeout=6).mean  # 3 second timeout
-                # Check if calculation is correct
-                correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-                c_numpyfied = c.asnumpy()
-                assert np.allclose(
-                    c_numpyfied, correct_answer
-                )  # test if same shape, elements have close enough values
-            except concurrent.futures.TimeoutError:
-                print("\033[93mEvaluation timed out\033[0m")
-                result = float("inf")
-            except AssertionError:
-                print("\033[93mInvalid Result Matrix\033[0m")
-                result = float("inf")
-            # TODO: Leaving the executor often hangs. Find out why
+        # with concurrent.futures.ThreadPoolExecutor() as executor:  # noqa: F821
+        #     future = executor.submit(evaluator, a, b, c)
+        #     try:
+        #         result = future.result(timeout=6).mean  # 3 second timeout
+        #         # Check if calculation is correct
+        #         correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+        #         c_numpyfied = c.asnumpy()
+        #         assert np.allclose(
+        #             c_numpyfied, correct_answer
+        #         )  # test if same shape, elements have close enough values
+        #     except concurrent.futures.TimeoutError:
+        #         print("\033[93mEvaluation timed out\033[0m")
+        #         result = float("inf")
+        #     except AssertionError:
+        #         print("\033[93mInvalid Result Matrix\033[0m")
+        #         result = float("inf")
+        #     # TODO: Leaving the executor often hangs. Find out why
 
         if not result_list[-1] or result < result_list[-1][-1]:
             result_list[-1].append(result)
@@ -127,7 +126,9 @@ def create_cost_function(result_list):
 def finish_schedule(tree: ScheduleTree):
     print(tree)
     return tvm.build(
-        tree.tvm_schedule, tree.static_tensors + [tree.computed_tensor], name="anything"
+        tree.schedule,
+        tree.static_tensors + [tree.computed_tensor],
+        name="anything",
     )
 
 
@@ -236,6 +237,8 @@ if __name__ == "__main__":
             create_cost_function(results_genetic),
             2,
             10,
+            api_description=[TILE, SPLIT, REORDER],
+            terminating_methods=[],
             population_size=POPULATION_SIZE,
             elitism_share=ELITISM_SHARE,
             use_genetic_algorithm_internally=True,
@@ -268,6 +271,8 @@ if __name__ == "__main__":
             create_cost_function(results_random),
             2,
             10,
+            api_description=[TILE, SPLIT, REORDER],
+            terminating_methods=[],
             use_genetic_algorithm_internally=False,
         )
         tuner.tune(

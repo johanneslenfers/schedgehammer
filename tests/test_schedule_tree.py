@@ -79,7 +79,7 @@ def test_no_crash():
         print("Trying to reapply schedule saved in tree to new schedule")
         fresh_tree = create_schedule()
         st.reapply_schedule(
-            fresh_tree.tvm_schedule,
+            fresh_tree.compiler_schedule,
             fresh_tree.computed_tensor,
             fresh_tree.static_tensors,
             [axis_node.axis for axis_node in fresh_tree.original_axes],
@@ -90,7 +90,7 @@ def test_no_crash():
     fresh_tree = create_schedule()
     s1.randomly_merge_with_other_schedule(
         s2,
-        fresh_tree.tvm_schedule,
+        fresh_tree.compiler_schedule,
         fresh_tree.computed_tensor,
         fresh_tree.static_tensors,
         [axis_node.axis for axis_node in fresh_tree.original_axes],
