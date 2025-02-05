@@ -44,7 +44,9 @@ class GeneticTuner(Tuner):
                     parent_two = random.choice(population[:reproduction_size])[0]
 
                     child = {}
-                    for [k1, v1], [k2, v2] in zip(parent_one.items(), parent_two.items()):
+                    for [k1, v1], [k2, v2] in zip(
+                        parent_one.items(), parent_two.items()
+                    ):
                         assert k1 == k2
                         # crossover and / or mutation
                         if random.random() < self.crossover_prob:
@@ -58,7 +60,9 @@ class GeneticTuner(Tuner):
                             else:
                                 child[k1] = attempt.problem.params[k1].choose_random()
 
-                    if not self.check_constraints or attempt.fulfills_all_constraints(child):
+                    if not self.check_constraints or attempt.fulfills_all_constraints(
+                        child
+                    ):
                         break
 
                 if not attempt.in_budget():

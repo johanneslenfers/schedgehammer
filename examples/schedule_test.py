@@ -1,10 +1,15 @@
+import json
 import os
 import sys
+import threading
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+import concurrent.futures
+
 import numpy
 import numpy as np
+import stopit
 import tvm
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
@@ -12,7 +17,9 @@ from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleEnvironment, ScheduleParam
+from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
+from schedgehammer.schedule_type_old import ScheduleEnvironment
+from schedgehammer.schedule_type_old import ScheduleParam as ScheduleParamOld
 from schedgehammer.tuner import EvalBudget
 
 M = 512
@@ -20,10 +27,11 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 60  # If >63 limit ansors iterations else it will crash
+ITERATIONS = 25  # If >63 limit ansors iterations else it will crash
 RUNS = 3
 
-results = []
+results_genetic = []
+results_random = []
 ansor_results = []
 
 
@@ -49,7 +57,7 @@ class StoreResultCallback(PythonBasedMeasureCallback):
                 ansor_results[-1].append(ansor_results[-1][-1])
 
 
-def create_schedule() -> ScheduleEnvironment:
+def create_schedule() -> ScheduleTree:
     k = te.reduce_axis((0, K), "k")
     A = te.placeholder((M, K), name="A")
     B = te.placeholder((K, N), name="B")
@@ -58,43 +66,68 @@ def create_schedule() -> ScheduleEnvironment:
     # Default schedule
     s = te.create_schedule(C.op)
 
-    return ScheduleEnvironment(
-        schedule=s,
-        static_args=[A, B],
-        computed_arg=C,
-        axis_pool=list(C.op.axis) + list(C.op.reduce_axis),
+    tree = ScheduleTree(
+        tvm_schedule=s,
+        computed_tensor=C,
+        static_tensors=[A, B],
     )
+    tree.add_original_axis(C.op.axis[0])
+    tree.add_original_axis(C.op.axis[1])
+    tree.add_original_axis(C.op.reduce_axis[0])
+    return tree
 
 
-def cost_function(config):
-    dev = tvm.device("llvm", 0)
+def create_cost_function(result_list):
+    def cost_function(config):
+        dev = tvm.device("llvm", 0)
 
-    # Random generated tensor for testing
-    a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
-    b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
-    c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
+        # Random generated tensor for testing
+        a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
+        b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
+        c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
 
-    func = config["schedule"]
-    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
-    result = evaluator(a, b, c)
-    # Check if calculation is correct
-    correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-    c_numpyfied = c.asnumpy()
-    assert np.allclose(
-        c_numpyfied, correct_answer
-    )  # test if same shape, elements have close enough values
+        func: tvm.module.Module = config["schedule"]
+        evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
 
-    print("Result:", result)
-    if not results[-1] or result.mean < results[-1][-1]:
-        results[-1].append(result.mean)
-    else:
-        results[-1].append(results[-1][-1])
-    return result.mean
+        # result = evaluator(a, b, c).mean
+        # correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+        # c_numpyfied = c.asnumpy()
+        # assert np.allclose(
+        #     c_numpyfied, correct_answer
+        # )  # test if same shape, elements have close enough values
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:  # noqa: F821
+            future = executor.submit(evaluator, a, b, c)
+            try:
+                result = future.result(timeout=6).mean  # 3 second timeout
+                # Check if calculation is correct
+                correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+                c_numpyfied = c.asnumpy()
+                assert np.allclose(
+                    c_numpyfied, correct_answer
+                )  # test if same shape, elements have close enough values
+            except concurrent.futures.TimeoutError:
+                print("\033[93mEvaluation timed out\033[0m")
+                result = float("inf")
+            except AssertionError:
+                print("\033[93mInvalid Result Matrix\033[0m")
+                result = float("inf")
+            # TODO: Leaving the executor often hangs. Find out why
+
+        if not result_list[-1] or result < result_list[-1][-1]:
+            result_list[-1].append(result)
+        else:
+            result_list[-1].append(result_list[-1][-1])
+        print("COST:", result)
+        return result
+
+    return cost_function
 
 
-def finish_schedule(env: ScheduleEnvironment):
+def finish_schedule(tree: ScheduleTree):
+    print(tree)
     return tvm.build(
-        env.schedule, env.static_args + [env.computed_arg], name="anything"
+        tree.tvm_schedule, tree.static_tensors + [tree.computed_tensor], name="anything"
     )
 
 
@@ -187,42 +220,89 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
 
 
 if __name__ == "__main__":
-    baseline_score = get_baseline()
-    print("Baseline:", baseline_score)
-    get_ansor_results()
+    POPULATION_SIZE = 10
+    ELITISM_SHARE = 0.3
     tuner = RandomSearch(check_constraints=False)
-    param = ScheduleParam(create_schedule, finish_schedule, 1, 5)
+    all_genetically_generated_trees = []
+
+    def genetic_param_callback(tree: ScheduleTree, cost: float):
+        all_genetically_generated_trees.append(((str(tree), tree.meta), cost))
+
     for _ in range(RUNS):
-        results.append([])
+        results_genetic.append([])
+        param = ScheduleParam(
+            create_schedule,
+            finish_schedule,
+            create_cost_function(results_genetic),
+            2,
+            10,
+            population_size=POPULATION_SIZE,
+            elitism_share=ELITISM_SHARE,
+            use_genetic_algorithm_internally=True,
+            genetic_algorithm_callback=genetic_param_callback,
+        )
         tuner.tune(
             problem=Problem(
                 "schedge",
                 {"schedule": param},
-                cost_function,
+                create_cost_function(results_genetic),
+                [],
+            ),
+            budgets=[
+                EvalBudget(
+                    (ITERATIONS - POPULATION_SIZE)
+                    / POPULATION_SIZE
+                    * (1 - ELITISM_SHARE)
+                )
+            ],
+        )
+    all_genetically_generated_trees.sort(key=lambda x: x[1])
+    with open("all_genetic_trees.json", "w") as file:
+        file.write(json.dumps(all_genetically_generated_trees))
+    tuner = RandomSearch(check_constraints=False)
+    for _ in range(RUNS):
+        results_random.append([])
+        param = ScheduleParam(
+            create_schedule,
+            finish_schedule,
+            create_cost_function(results_random),
+            2,
+            10,
+            use_genetic_algorithm_internally=False,
+        )
+        tuner.tune(
+            problem=Problem(
+                "schedge",
+                {"schedule": param},
+                create_cost_function(results_random),
                 [],
             ),
             budgets=[EvalBudget(ITERATIONS)],
         )
 
-    best_block_schedule = float("inf")
-    for bn_exp in range(1, 10):
-        for kfactor_exp in range(1, 10):
-            print(
-                "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp
-            )
-            best_block_schedule = min(
-                best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
-            )
+    # baseline_score = get_baseline()
+    # print("Baseline:", baseline_score)
+    # get_ansor_results()
+    # best_block_schedule = float("inf")
+    # for bn_exp in range(1, 10):
+    #     for kfactor_exp in range(1, 10):
+    #         print(
+    #             "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp
+    #         )
+    #         best_block_schedule = min(
+    #             best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
+    #         )
 
     plt.figure()
-    plot_results_from_several_runs(results, "Random Search")
-    xs = plot_results_from_several_runs(ansor_results, "Ansor")
-    plt.plot(xs, [baseline_score] * len(xs), label="Baseline")
-    plt.plot(
-        xs,
-        [best_block_schedule] * len(xs),
-        label="Optimized Block Schedule",
-    )
+    plot_results_from_several_runs(results_genetic, "Genetic Search")
+    plot_results_from_several_runs(results_random, "Random Search Old")
+    # xs = plot_results_from_several_runs(ansor_results, "Ansor")
+    # plt.plot(xs, [baseline_score] * len(xs), label="Baseline")
+    # plt.plot(
+    #     xs,
+    #     [best_block_schedule] * len(xs),
+    #     label="Optimized Block Schedule",
+    # )
     plt.xlabel("function evaluations")
     plt.ylabel("cost")
     plt.yscale("log")
