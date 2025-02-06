@@ -13,7 +13,7 @@ ParameterConfiguration = Dict[str, ParamValue]
 
 class Budget(ABC):
     @abstractmethod
-    def in_budget(self, tuner) -> bool:
+    def in_budget(self, tuner, reserve=0) -> bool:
         pass
 
 
@@ -21,16 +21,16 @@ class Budget(ABC):
 class EvalBudget(Budget):
     max_evaluations: int
 
-    def in_budget(self, tuner) -> bool:
-        return tuner.current_evaluation <= self.max_evaluations
+    def in_budget(self, tuner, reserve=0) -> bool:
+        return tuner.current_evaluation <= self.max_evaluations * (1 - reserve)
 
 
 @dataclass
 class TimeBudget(Budget):
     seconds: float
 
-    def in_budget(self, tuner) -> bool:
-        return time.perf_counter() - tuner.start_time <= self.seconds
+    def in_budget(self, tuner, reserve=0) -> bool:
+        return time.perf_counter() - tuner.start_time <= self.seconds * (1 - reserve)
 
 
 class TuningAttempt:
@@ -94,8 +94,8 @@ class TuningAttempt:
             self.evaluation_cumulative_duration,
         )
 
-    def in_budget(self) -> bool:
-        return all([b.in_budget(self) for b in self.budgets])
+    def in_budget(self, reserve=0) -> bool:
+        return all([b.in_budget(self, reserve) for b in self.budgets])
 
     def log_state(self):
         print("\033[H\033[J", end="")

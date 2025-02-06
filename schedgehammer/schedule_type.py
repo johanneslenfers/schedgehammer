@@ -320,6 +320,15 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
         """
         return max(self.get_leave_axes(), key=lambda x: x.id)
 
+    def randomly_tweak_primitive_params(self) -> None:
+        """
+        Go through all operations and give the primitive params new random values.
+        """
+        for operation_node in self.get_topological_order():
+            for param_name, param in operation_node.operation.params.items():
+                if isinstance(param, Param):
+                    operation_node.args[param_name] = param.choose_random()
+
     def randomly_merge_with_other_schedule(
         self,
         other_schedule: ScheduleTree,
@@ -400,32 +409,11 @@ class OperationNode:
 class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
     create_schedule: Callable[[None], ScheduleTree]
     finish_schedule: Callable[[ScheduleTree], CompiledSchedule]
-    cost_function: Callable[[CompiledSchedule], float]
     min_length: int
     max_length: int
     api_description: list[Operation]
     terminating_methods: list[Operation]
-    use_genetic_algorithm_internally: bool = False
-    population_size: int = 5
-    elitism_share: float = 0.3
-    reproduction_share: float = 0.5
-    crossover_prob: float = 0.5
-    additional_mutation_prob: float = 0.1
-    local_mutation: bool = False
-    current_population: list[tuple[ScheduleTree, float]] = field(default_factory=list)
-    genetic_algorithm_callback: Callable[[ScheduleTree, float], None] | None = None
-
-    def __post_init__(self, *args, **kwargs):
-        if self.use_genetic_algorithm_internally:
-            for _ in range(self.population_size):
-                schedule_tree, cost = self.get_random_schedule_and_cost()
-                self.current_population.append((schedule_tree, cost))
-                if self.genetic_algorithm_callback:
-                    self.genetic_algorithm_callback(schedule_tree, cost)
-            self.current_population = sorted(
-                self.current_population, key=lambda x: x[1]
-            )
-            print([schedule[1] for schedule in self.current_population])
+    last_generated_tree: ScheduleTree | None = None
 
     def try_appending_method(
         self,
@@ -455,18 +443,6 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
             print(f"\033[93mCouldn't apply {method.name}\033[0m")
         return schedule_tree, method_candidates, None
 
-    def get_random_schedule_and_cost(self) -> tuple[ScheduleTree, float]:
-        while True:
-            try:
-                schedule_tree = self.create_random_schedule()
-                cost = self.cost_function(
-                    {"schedule": self.finish_schedule(schedule_tree)}
-                )
-                break
-            except Exception as e:
-                print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
-        return schedule_tree, cost
-
     def create_random_schedule(self) -> ScheduleTree:
         while True:
             schedule_tree = self.create_schedule()
@@ -489,68 +465,9 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
         return schedule_tree
 
     def choose_random(self, current_value=None):
-        if not self.use_genetic_algorithm_internally:
-            while True:
-                try:
-                    return self.finish_schedule(self.create_random_schedule())
-                except Exception as e:
-                    print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
-        else:
-            elitism_size = int(self.population_size * self.elitism_share)
-            reproduction_size = int(self.population_size * self.reproduction_share)
-            new_population = self.current_population[:elitism_size]
-            for _ in range(self.population_size - elitism_size):
-                if random.random() < self.crossover_prob:
-                    parent_one = copy.deepcopy(
-                        random.choice(self.current_population[:reproduction_size])[0]
-                    )
-                    parent_two = copy.deepcopy(
-                        random.choice(
-                            [
-                                element
-                                for element in self.current_population[
-                                    :reproduction_size
-                                ]
-                                if element[0] != parent_one
-                            ]
-                        )[0]
-                    )
-                    if random.random() < 0.5:
-                        parent_one, parent_two = parent_two, parent_one
-                    parent_one.meta.append("CROSSOVER")
-                    fresh_tree = self.create_schedule()
-                    parent_one.randomly_merge_with_other_schedule(
-                        parent_two,
-                        fresh_tree.schedule,
-                        fresh_tree.computed_tensor,
-                        fresh_tree.static_tensors,
-                        [axis.axis for axis in fresh_tree.original_axes],
-                        self.max_length,
-                    )
-                    while random.random() < self.additional_mutation_prob:
-                        method_candidates = self.api_description.copy()
-                        while method_candidates:
-                            parent_one, _, method = self.try_appending_method(
-                                parent_one, method_candidates
-                            )
-                            parent_one.meta.append("CROSSOVER_MUTATION")
-                            if method in self.terminating_methods:
-                                break
-
-                    try:
-                        cost = self.cost_function(
-                            {"schedule": self.finish_schedule(parent_one)}
-                        )
-                        new_population.append((parent_one, cost))
-                    except Exception as e:
-                        print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
-                        random_schedule, cost = self.get_random_schedule_and_cost()
-                        new_population.append((random_schedule, cost))
-                else:
-                    random_schedule, cost = self.get_random_schedule_and_cost()
-                    new_population.append((random_schedule, cost))
-                if self.genetic_algorithm_callback:
-                    self.genetic_algorithm_callback(*new_population[-1])
-            self.current_population = sorted(new_population, key=lambda x: x[1])
-            print([schedule[1] for schedule in self.current_population])
-            return self.finish_schedule(self.current_population[0][0])
+        while True:
+            try:
+                self.last_generated_tree = self.create_random_schedule()
+                return self.finish_schedule(self.last_generated_tree)
+            except Exception as e:
+                print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
