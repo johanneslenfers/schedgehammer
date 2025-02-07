@@ -28,9 +28,7 @@ N = 512
 
 DTYPE = "float32"
 
-results_genetic = []
-results_random = []
-ansor_results = []
+costs_per_schedule = []
 
 
 def plot_results_from_several_runs(results, label) -> range:
@@ -43,16 +41,6 @@ def plot_results_from_several_runs(results, label) -> range:
     plt.plot(xs, means, label=label)
     plt.fill_between(xs, mins, maxs, alpha=0.3)
     return xs
-
-
-class StoreResultCallback(PythonBasedMeasureCallback):
-    def callback(self, policy, inputs, results):
-        for result in results[0:]:
-            cost = float(result.costs[0])
-            if not ansor_results[-1] or cost < ansor_results[-1][-1]:
-                ansor_results[-1].append(cost)
-            else:
-                ansor_results[-1].append(ansor_results[-1][-1])
 
 
 def create_schedule() -> ScheduleTree:
@@ -75,51 +63,26 @@ def create_schedule() -> ScheduleTree:
     return tree
 
 
-def create_cost_function(result_list):
-    def cost_function(config):
-        dev = tvm.device("llvm", 0)
+def cost_function(config):
+    dev = tvm.device("llvm", 0)
 
-        # Random generated tensor for testing
-        a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
-        b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
-        c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
+    # Random generated tensor for testing
+    a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
+    b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
+    c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
 
-        func: tvm.module.Module = config["schedule"]
-        evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
+    func: tvm.module.Module = config["schedule"]
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
 
-        result = evaluator(a, b, c).mean
-        correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-        c_numpyfied = c.asnumpy()
-        assert np.allclose(
-            c_numpyfied, correct_answer
-        )  # test if same shape, elements have close enough values
+    result = evaluator(a, b, c).mean
+    correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+    c_numpyfied = c.asnumpy()
+    assert np.allclose(
+        c_numpyfied, correct_answer
+    )  # test if same shape, elements have close enough values
 
-        # with concurrent.futures.ThreadPoolExecutor() as executor:  # noqa: F821
-        #     future = executor.submit(evaluator, a, b, c)
-        #     try:
-        #         result = future.result(timeout=6).mean  # 3 second timeout
-        #         # Check if calculation is correct
-        #         correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-        #         c_numpyfied = c.asnumpy()
-        #         assert np.allclose(
-        #             c_numpyfied, correct_answer
-        #         )  # test if same shape, elements have close enough values
-        #     except concurrent.futures.TimeoutError:
-        #         print("\033[93mEvaluation timed out\033[0m")
-        #         result = float("inf")
-        #     except AssertionError:
-        #         print("\033[93mInvalid Result Matrix\033[0m")
-        #         result = float("inf")
-        #     # TODO: Leaving the executor often hangs. Find out why
-
-        if not result_list[-1] or result < result_list[-1][-1]:
-            result_list[-1].append(result)
-        else:
-            result_list[-1].append(result_list[-1][-1])
-        print("COST:", result)
-        return result
-
-    return cost_function
+    costs_per_schedule[-1].append(result)
+    return result
 
 
 def finish_schedule(tree: ScheduleTree):
@@ -131,52 +94,43 @@ def finish_schedule(tree: ScheduleTree):
 
 
 if __name__ == "__main__":
-        for run in range(RUNS):
-            print("\033[95mRUN:", run, "\033[0m")
-            result_list.append([])
-            param = ScheduleParam(
-                create_schedule,
-                finish_schedule,
-                2,
-                10,
-                api_description=[TILE, SPLIT, REORDER],
-                terminating_methods=[],
-            )
-            tuner.tune(
-                problem=Problem(
-                    "schedge",
-                    {"schedule": param},
-                    create_cost_function(result_list),
-                    [],
-                ),
-                budgets=[EvalBudget(ITERATIONS)],
-            )
-
-    # baseline_score = get_baseline()
-    # print("Baseline:", baseline_score)
-    # get_ansor_results()
-    # best_block_schedule = float("inf")
-    # for bn_exp in range(1, 10):
-    #     for kfactor_exp in range(1, 10):
-    #         print(
-    #             "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp
-    #         )
-    #         best_block_schedule = min(
-    #             best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
-    #         )
-
+    param = ScheduleParam(
+        create_schedule,
+        finish_schedule,
+        2,
+        10,
+        api_description=[TILE, SPLIT, REORDER],
+        terminating_methods=[],
+    )
+    best_cost = float("inf")
+    best_tree = None
+    i = 0
+    while not best_cost < 0.006 and i < 250:
+        costs_per_schedule.append([])
+        schedule = param.choose_random()
+        tree = param.last_generated_tree
+        cost = cost_function({"schedule": finish_schedule(tree)})
+        if cost < best_cost:
+            best_cost = cost
+            best_tree = tree
+        print(i, best_cost, cost)
+        i += 1
+    costs_per_schedule.append([])
+    for variant_num in range(50):
+        print(variant_num, "/", 40)
+        best_tree.randomly_tweak_primitive_params()
+        fresh_tree: ScheduleTree = create_schedule()
+        best_tree.reapply_schedule(
+            fresh_tree.schedule,
+            fresh_tree.computed_tensor,
+            fresh_tree.static_tensors,
+            [axis.axis for axis in fresh_tree.original_axes],
+        )
+        cost = cost_function({"schedule": finish_schedule(best_tree)})
     plt.figure()
-    plot_results_from_several_runs(results_genetic, "Genetic Search")
-    plot_results_from_several_runs(results_random, "Random Search Old")
-    # xs = plot_results_from_several_runs(ansor_results, "Ansor")
-    # plt.plot(xs, [baseline_score] * len(xs), label="Baseline")
-    # plt.plot(
-    #     xs,
-    #     [best_block_schedule] * len(xs),
-    #     label="Optimized Block Schedule",
-    # )
-    plt.xlabel("function evaluations")
-    plt.ylabel("cost")
+    # Plot  results as dot diagram
+    for i, costs in enumerate(costs_per_schedule):
+        plt.plot([i] * len(costs), costs, "o")
     plt.yscale("log")
-    plt.legend()
     plt.show()
+    print(str(best_tree))

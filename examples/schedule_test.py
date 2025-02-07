@@ -27,8 +27,8 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 55  # If >63 limit ansors iterations else it will crash
-RUNS = 15
+ITERATIONS = 110  # If >63 limit ansors iterations else it will crash
+RUNS = 3
 
 results_genetic = []
 results_random = []
@@ -39,11 +39,16 @@ def plot_results_from_several_runs(results, label) -> range:
     """Plot results from multiple runs and returns x values"""
     zipped_results = list(zip(*results))
     means = [np.mean(x) for x in zipped_results]
-    mins = [np.min(x) for x in zipped_results]
-    maxs = [np.max(x) for x in zipped_results]
+    lower_percentile = [np.percentile(x, 5) for x in zipped_results]
+    upper_percentile = [np.percentile(x, 95) for x in zipped_results]
     xs = range(len(zipped_results))
     plt.plot(xs, means, label=label)
-    plt.fill_between(xs, mins, maxs, alpha=0.3)
+    plt.fill_between(
+        xs,
+        lower_percentile,
+        upper_percentile,
+        alpha=0.3,
+    )
     return xs
 
 
