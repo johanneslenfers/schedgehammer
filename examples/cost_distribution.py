@@ -103,34 +103,27 @@ if __name__ == "__main__":
         terminating_methods=[],
     )
     best_cost = float("inf")
-    best_tree = None
-    i = 0
-    while not best_cost < 0.006 and i < 250:
+    for schedule_num in range(150):
         costs_per_schedule.append([])
         schedule = param.choose_random()
         tree = param.last_generated_tree
-        cost = cost_function({"schedule": finish_schedule(tree)})
-        if cost < best_cost:
-            best_cost = cost
-            best_tree = tree
-        print(i, best_cost, cost)
-        i += 1
-    costs_per_schedule.append([])
-    for variant_num in range(50):
-        print(variant_num, "/", 40)
-        best_tree.randomly_tweak_primitive_params()
-        fresh_tree: ScheduleTree = create_schedule()
-        best_tree.reapply_schedule(
-            fresh_tree.schedule,
-            fresh_tree.computed_tensor,
-            fresh_tree.static_tensors,
-            [axis.axis for axis in fresh_tree.original_axes],
-        )
-        cost = cost_function({"schedule": finish_schedule(best_tree)})
+        for variant_num in range(10):
+            print(variant_num, "/", schedule_num)
+            tree.randomly_tweak_primitive_params()
+            fresh_tree: ScheduleTree = create_schedule()
+            tree.reapply_schedule(
+                fresh_tree.schedule,
+                fresh_tree.computed_tensor,
+                fresh_tree.static_tensors,
+                [axis.axis for axis in fresh_tree.original_axes],
+            )
+            cost = cost_function({"schedule": finish_schedule(tree)})
+            if cost < best_cost:
+                best_cost = cost
+            print(best_cost, cost)
     plt.figure()
     # Plot  results as dot diagram
     for i, costs in enumerate(costs_per_schedule):
         plt.plot([i] * len(costs), costs, "o")
     plt.yscale("log")
     plt.show()
-    print(str(best_tree))

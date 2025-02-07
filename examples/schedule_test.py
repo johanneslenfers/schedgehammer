@@ -27,8 +27,8 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 110  # If >63 limit ansors iterations else it will crash
-RUNS = 3
+ITERATIONS = 21  # If >63 limit ansors iterations else it will crash
+RUNS = 1
 
 results_genetic = []
 results_random = []
