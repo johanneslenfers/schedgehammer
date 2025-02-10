@@ -7,7 +7,9 @@ from schedgehammer.schedule_type import AxisParam, AxisPoolPermutationParam, Ope
 
 TILE = Operation(
     "tile",
-    lambda t, args, kwargs: t.tile(*args, **kwargs),
+    lambda tree, args, kwargs: tree.schedule[tree.computed_tensor].tile(
+        *args, **kwargs
+    ),
     {
         "x_parent": AxisParam(consuming=True),
         "y_parent": AxisParam(consuming=True),
@@ -17,7 +19,9 @@ TILE = Operation(
 )
 SPLIT = Operation(
     "split",
-    lambda t, args, kwargs: t.split(*args, **kwargs),
+    lambda tree, args, kwargs: tree.schedule[tree.computed_tensor].split(
+        *args, **kwargs
+    ),
     {
         "parent": AxisParam(consuming=True),
         "factor": ExpIntParam(2, min_exp=1, max_exp=8),
@@ -25,23 +29,24 @@ SPLIT = Operation(
 )
 REORDER = Operation(
     "reorder",
-    lambda t, args, kwargs: t.reorder(*args, **kwargs),
+    lambda tree, args, kwargs: tree.schedule[tree.computed_tensor].reorder(
+        *args, **kwargs
+    ),
     {"": AxisPoolPermutationParam()},
 )
 
 UNROLL = Operation(
     "unroll",
-    lambda t, args, kwargs: t.unroll(*args, **kwargs),
+    lambda tree, args, kwargs: tree.schedule[tree.computed_tensor].unroll(
+        *args, **kwargs
+    ),
     {"": AxisParam(consuming=True, force_inner=True)},
 )
 
 PARALLEL = Operation(
     "parallel",
-    lambda t, args, kwargs: t.parallel(*args, **kwargs),
+    lambda tree, args, kwargs: tree.schedule[tree.computed_tensor].parallel(
+        *args, **kwargs
+    ),
     {"": AxisParam(consuming=True, force_inner=True)},
 )
-# VECTORIZE = Operation(
-#     "vectorize",
-#     lambda t: t.vectorize,
-#     {"": TvmAxisParam(consuming=True, force_inner=True)},
-# )
