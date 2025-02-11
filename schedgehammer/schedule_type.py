@@ -36,9 +36,7 @@ MethodParamType = AxisParam | AxisPoolPermutationParam | Param
 @dataclass
 class Operation(Generic[Axis, Tensor]):
     name: str
-    compiler_operation: Callable[
-        [Tensor, list, dict], list[Axis]
-    ]  # Pass tensor, get back operation to call with the generated args
+    compiler_operation: Callable[[ScheduleTree, list, dict], list[Axis]]
     params: dict[str, MethodParamType]
 
     def apply_random_on_tree(self, schedule_tree: ScheduleTree) -> ScheduleTree:
@@ -71,18 +69,17 @@ class Operation(Generic[Axis, Tensor]):
                 param_val = param_val.axis
             compiler_args[param_name] = param_val
         # Operation payload is ready, now call it
-        tensor = schedule_tree.schedule[schedule_tree.computed_tensor]
         if "" in compiler_args.keys():
             # Not a kwarg, but a positional arg
             new_axes = self.compiler_operation(
-                tensor,
+                schedule_tree,
                 compiler_args[""]
                 if isinstance(compiler_args[""], list)
                 else [compiler_args[""]],
                 {},
             )
         else:
-            new_axes = self.compiler_operation(tensor, [], compiler_args)
+            new_axes = self.compiler_operation(schedule_tree, [], compiler_args)
         # Create operation node and new axis nodes for the generated axes and put them in the tree
         for axis in new_axes if new_axes else []:
             generated_axes_nodes.append(AxisNode(schedule_tree.max_id + 1, axis, None))
@@ -156,7 +153,6 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
         self.static_tensors = fresh_static_tensors
         self.schedule = fresh_schedule
         self.computed_tensor = fresh_tensor
-        tensor = self.schedule[self.computed_tensor]
         for i, axis in enumerate(fresh_axes):
             self.original_axes[i].axis = axis
         topological_order = self.get_topological_order()
@@ -180,7 +176,7 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
                 try:
                     new_axes = (
                         node.operation.compiler_operation(
-                            tensor,
+                            self,
                             compiler_args[""]
                             if isinstance(compiler_args[""], list)
                             else [compiler_args[""]],
@@ -194,8 +190,7 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
             else:
                 try:
                     new_axes = (
-                        node.operation.compiler_operation(tensor, [], compiler_args)
-                        or []
+                        node.operation.compiler_operation(self, [], compiler_args) or []
                     )
                 except Exception as e:
                     print(self.meta)
@@ -439,8 +434,8 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
             else:
                 method_candidates = self.api_description.copy()
             return schedule_tree, method_candidates, method
-        except Exception:
-            print(f"\033[93mCouldn't apply {method.name}\033[0m")
+        except Exception as e:
+            print(f"\033[93mCouldn't apply {method.name} bc {e}\033[0m")
         return schedule_tree, method_candidates, None
 
     def create_random_schedule(self) -> ScheduleTree:
