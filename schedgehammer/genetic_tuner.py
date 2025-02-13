@@ -9,7 +9,7 @@ from schedgehammer.tuner import Tuner, TuningAttempt
 class GeneticTuner(Tuner):
     check_constraints: bool = True
     population_size: int = 100
-    elitism_share: float = 0.1
+    elitism_share: float = 0.2
     reproduction_share: float = 0.3
     crossover_prob: float = 0.5
     mutation_prob: float = 0.1
@@ -41,9 +41,8 @@ class GeneticTuner(Tuner):
 
                 cost = attempt.evaluate_config(ret)
                 population.append((ret, schedule_param.last_generated_tree, cost))
-            elites = sorted(population, key=lambda x: x[2])[
-                int(len(population) * self.elitism_share)
-            ]
+            elitism_size = int(len(population) * self.elitism_share)
+            elites = sorted(population, key=lambda x: x[2])[:elitism_size]
             while attempt.in_budget():
                 ret, tree, old_cost = random.choice(elites)
                 tree.randomly_tweak_primitive_params()
