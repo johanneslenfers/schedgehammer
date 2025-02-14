@@ -9,12 +9,12 @@ from schedgehammer.tuner import Tuner, TuningAttempt
 class GeneticTuner(Tuner):
     check_constraints: bool = True
     population_size: int = 100
-    elitism_share: float = 0.2
+    elitism_share: float = 0.05
     reproduction_share: float = 0.3
     crossover_prob: float = 0.5
     mutation_prob: float = 0.1
     local_mutation: bool = False
-    schedule_local_mutation_budget_share: float = 0.5
+    schedule_local_mutation_budget_share: float = 0.2
 
     def do_tuning(self, attempt: TuningAttempt):
         elitism_size = int(self.population_size * self.elitism_share)
