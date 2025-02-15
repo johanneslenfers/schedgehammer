@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass
 
+from schedgehammer.meta_tree import MetaTree
 from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
 from schedgehammer.tuner import Tuner, TuningAttempt
 
@@ -9,7 +10,7 @@ from schedgehammer.tuner import Tuner, TuningAttempt
 class GeneticTuner(Tuner):
     check_constraints: bool = True
     population_size: int = 100
-    elitism_share: float = 0.05
+    elitism_share: float = 0.2
     reproduction_share: float = 0.3
     crossover_prob: float = 0.5
     mutation_prob: float = 0.1
@@ -28,6 +29,7 @@ class GeneticTuner(Tuner):
         ]
         if len(schedule_params) == 1:
             schedule_param_name, schedule_param = schedule_params[0]
+            meta_tree = MetaTree(schedule_param)
             while attempt.in_budget(self.schedule_local_mutation_budget_share):
                 ret = {}
                 while True:
@@ -40,38 +42,39 @@ class GeneticTuner(Tuner):
                         break
 
                 cost = attempt.evaluate_config(ret)
+                schedule_param.last_generated_tree.add_to_meta_tree(meta_tree, cost)
                 population.append((ret, schedule_param.last_generated_tree, cost))
-            elitism_size = int(len(population) * self.elitism_share)
-            elites = sorted(population, key=lambda x: x[2])[:elitism_size]
+            best_meta_nodes = meta_tree.get_n_best_children(6)  # TODO: Not hardcoded
+            for node in best_meta_nodes:
+                print(str(node))
+                print([op.name for op in node.get_geneaology()])
+                print("-" * 100)
             while attempt.in_budget():
-                ret, tree, old_cost = random.choice(elites)
-                tree.randomly_tweak_primitive_params()
-                fresh_tree: ScheduleTree = schedule_param.create_schedule()
-                tree.reapply_schedule(
-                    fresh_tree.schedule,
-                    fresh_tree.computed_tensor,
-                    fresh_tree.static_tensors,
-                    [axis.axis for axis in fresh_tree.original_axes],
-                )
-                ret[schedule_param_name] = schedule_param.finish_schedule(tree)
-                cost = attempt.evaluate_config(ret)
-                if cost < old_cost:
-                    print(
-                        "\033[92mMutation improved cost from",
-                        old_cost,
-                        "to",
-                        cost,
-                        "\033[0m",
-                    )
-                else:
-                    print(
-                        "\033[93mMutation increased cost from",
-                        old_cost,
-                        "to",
-                        cost,
-                        "\033[0m",
-                    )
+                ret = {}
+                while True:
+                    for [name, param] in attempt.problem.params.items():
+                        if name == schedule_param_name:
+                            tree = schedule_param.create_schedule()
+                            geneaology_to_apply = random.choice(
+                                best_meta_nodes
+                            ).get_geneaology()
+                            for operation in geneaology_to_apply:
+                                _, _, method = schedule_param.try_appending_method(
+                                    tree, [operation]
+                                )
+                                if not method:
+                                    print(
+                                        f"\033[93mReplicating {operation.name} failed\033[0m"
+                                    )
+                                    break
+                        ret[name] = param.choose_random()
 
+                    if not self.check_constraints or attempt.fulfills_all_constraints(
+                        ret
+                    ):
+                        break
+                cost = attempt.evaluate_config(ret)
+                print("COST IN 2nd phase", cost)
         elif len(schedule_params) == 0:
             for _ in range(self.population_size):
                 ret = {}

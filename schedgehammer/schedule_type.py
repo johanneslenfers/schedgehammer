@@ -11,6 +11,7 @@ from typing import Any, Callable, Generic, Type, TypeVar
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from schedgehammer.meta_tree import MetaTree, MetaTreeNode
 from schedgehammer.param_types import Param, ParamValue
 
 Schedule = TypeVar("Schedule")
@@ -142,6 +143,19 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
         self._do_inorder_traversal(node_operation)
         nx.draw(g, with_labels=True)
         plt.show()
+
+    def add_to_meta_tree(self, meta_tree: MetaTree, cost: float):
+        meta_tree.root.costs.append(cost)
+        tree_node = meta_tree.root
+        for operation_node in self.get_topological_order():
+            assert isinstance(operation_node, OperationNode)
+            if operation_node.operation.name not in tree_node.children:
+                tree_node.children[operation_node.operation.name] = MetaTreeNode(
+                    {}, operation_node.operation, [cost], tree_node
+                )
+            else:
+                tree_node.children[operation_node.operation.name].costs.append(cost)
+            tree_node = tree_node.children[operation_node.operation.name]
 
     def reapply_schedule(
         self,
@@ -329,6 +343,28 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
                 if isinstance(param, Param):
                     operation_node.args[param_name] = param.choose_random()
 
+    def delete_last_operation(self) -> None:
+        """
+        Replace the last operation with a random new one
+        """
+        last_operation = self.get_topological_order()[-1]
+        self.delete_subtree(last_operation)
+
+    def delete_subtree(self, start_node: Node) -> None:
+        assert isinstance(start_node, OperationNode)
+
+        def node_operaton(node):
+            if isinstance(node, AxisNode):
+                return
+            for input in node.input_axes.values():
+                if isinstance(input, AxisNode):
+                    input.processed_in = None
+                else:
+                    for axis_node in input:
+                        axis_node.processed_in = None
+
+        self._do_bfs(node_operaton, start_node=start_node)
+
     def randomly_merge_with_other_schedule(
         self,
         other_schedule: ScheduleTree,
@@ -348,18 +384,7 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
         topological_order = self.get_topological_order()
         random_node = random.choice(topological_order)
 
-        def node_operaton(node):
-            if isinstance(node, AxisNode):
-                return
-            for input in node.input_axes.values():
-                if isinstance(input, AxisNode):
-                    input.processed_in = None
-                else:
-                    for axis_node in input:
-                        axis_node.processed_in = None
-
-        self._do_bfs(node_operaton, start_node=random_node)
-        # TODO: Continue here, this causes bugs
+        self.delete_subtree(random_node)
         self.reapply_schedule(
             fresh_schedule, fresh_tensor, fresh_static_tensors, fresh_axes
         )
