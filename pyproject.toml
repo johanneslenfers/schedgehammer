@@ -15,7 +15,7 @@ dependencies = [
 
 [tool.setuptools]
 ext-modules = [
-  {name = "taco_bindings", sources = ["taco_bindings/hi.cpp"], include-dirs = ["taco/include/"], library-dirs = ["taco/build/lib/"], libraries = ["taco"]}
+  {name = "taco_bindings", sources = ["taco_bindings/bindings.cpp"], include-dirs = ["taco/include/"], library-dirs = ["taco/build/lib/"], libraries = ["taco"]}
 ]
 
 [tool.setuptools.packages.find]
