@@ -1,4 +1,3 @@
-#include "taco/index_notation/index_notation.h"
 #include <Python.h>
 #include <chrono>
 #include <iostream>
@@ -66,12 +65,24 @@ void spmv(ScheduleEnvInternal *se) {
 
 extern "C" {
 
-static PyObject *ScheduleEnv_init_spmv(ScheduleEnvInternal *self,
-                                       PyObject *Py_UNUSED(ignored)) {
-    spmv(self);
+static int ScheduleEnv_init(ScheduleEnvInternal *self, PyObject *args) {
+    const char *program;
+
+    if (!PyArg_ParseTuple(args, "s", &program)) {
+        return NULL;
+    }
+
+    if (std::string(program) == "spmv") {
+        spmv(self);
+    } else {
+        PyErr_SetString(PyExc_NotImplementedError,
+                        "currently only spmv is supported!");
+        return NULL;
+    }
+
     self->vars = self->stmt.getIndexVars();
 
-    Py_RETURN_NONE;
+    return 0;
 }
 
 static PyObject *ScheduleEnv_get_initial_axes(ScheduleEnvInternal *self,
@@ -98,6 +109,14 @@ static PyObject *ScheduleEnv_get_vars(ScheduleEnvInternal *self,
     return list;
 }
 
+static PyObject *ScheduleEnv_statement(ScheduleEnvInternal *self,
+                                       PyObject *Py_UNUSED(ignored)) {
+    std::ostringstream out;
+    out << self->stmt;
+
+    return PyUnicode_FromString(out.str().c_str());
+}
+
 static PyObject *ScheduleEnv_split(ScheduleEnvInternal *self, PyObject *args) {
     const char *original, *first, *second;
     int factor;
@@ -109,7 +128,7 @@ static PyObject *ScheduleEnv_split(ScheduleEnvInternal *self, PyObject *args) {
         if (var.getName() == original) {
             IndexVar a{std::string(first)}, b{std::string(second)};
 
-            self->stmt.split(var, a, a, factor);
+            self->stmt = self->stmt.split(var, a, b, factor);
             self->vars.push_back(a);
             self->vars.push_back(b);
         }
@@ -141,8 +160,6 @@ static PyObject *ScheduleEnv_execute(ScheduleEnvInternal *self,
 }
 
 static PyMethodDef ScheduleEnv_methods[] = {
-    {"init_spmv", (PyCFunction)ScheduleEnv_init_spmv, METH_NOARGS,
-     "initialize environment with the SPMV computation"},
     {"get_initial_axes", (PyCFunction)ScheduleEnv_get_initial_axes, METH_NOARGS,
      "get initial axes"},
     {"get_vars", (PyCFunction)ScheduleEnv_get_vars, METH_NOARGS,
@@ -150,6 +167,8 @@ static PyMethodDef ScheduleEnv_methods[] = {
     {"split", (PyCFunction)ScheduleEnv_split, METH_VARARGS, "split statement"},
     {"execute", (PyCFunction)ScheduleEnv_execute, METH_NOARGS,
      "execute statement"},
+    {"statement", (PyCFunction)ScheduleEnv_statement, METH_NOARGS,
+     "return statement as str"},
     {NULL} /* Sentinel */
 };
 
@@ -161,6 +180,7 @@ static PyTypeObject ScheduleEnv = {
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_doc = PyDoc_STR("ScheduleEnvironment"),
     .tp_methods = ScheduleEnv_methods,
+    .tp_init = (initproc)ScheduleEnv_init,
     .tp_new = PyType_GenericNew,
 };
 
