@@ -128,7 +128,7 @@ static PyObject *ScheduleEnv_split(ScheduleEnvInternal *self, PyObject *args) {
         if (var.getName() == original) {
             IndexVar a{std::string(first)}, b{std::string(second)};
 
-            self->stmt.split(var, a, a, factor);
+            self->stmt = self->stmt.split(var, a, b, factor);
             self->vars.push_back(a);
             self->vars.push_back(b);
         }
