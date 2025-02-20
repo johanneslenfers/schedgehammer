@@ -2,7 +2,6 @@
 #include <chrono>
 #include <iostream>
 #include <taco.h>
-#include <variant>
 #include <vector>
 
 using namespace taco;
@@ -63,6 +62,19 @@ void spmv(ScheduleEnvInternal *se) {
     se->output_tensor = y;
 }
 
+void mini(ScheduleEnvInternal *se) {
+    Format csr({Dense, Sparse});
+    Tensor<double> A("A", {512, 64}, csr);
+    Tensor<double> x("x", {64}, {Dense});
+    Tensor<double> y("y", {512}, {Dense});
+
+    IndexVar i("i"), j("j");
+    Access matrix = A(i, j);
+    y(i) = matrix * x(j);
+    se->stmt = y.getAssignment().concretize();
+    se->output_tensor = y;
+}
+
 extern "C" {
 
 static int ScheduleEnv_init(ScheduleEnvInternal *self, PyObject *args) {
@@ -72,14 +84,18 @@ static int ScheduleEnv_init(ScheduleEnvInternal *self, PyObject *args) {
         return NULL;
     }
 
-    if (std::string(program) == "spmv") {
+    std::string ps{program};
+    if (ps == "spmv") {
         spmv(self);
+    } else if (ps == "mini") {
+        mini(self);
     } else {
         PyErr_SetString(PyExc_NotImplementedError,
-                        "currently only spmv is supported!");
+                        "currently only spmv, or mini is supported!");
         return NULL;
     }
 
+    // TODO: add matrices as members
     self->vars = self->stmt.getIndexVars();
 
     return 0;
@@ -117,6 +133,14 @@ static PyObject *ScheduleEnv_statement(ScheduleEnvInternal *self,
     return PyUnicode_FromString(out.str().c_str());
 }
 
+static PyObject *ScheduleEnv_code(ScheduleEnvInternal *self,
+                                       PyObject *Py_UNUSED(ignored)) {
+    std::ostringstream out;
+    out << self->output_tensor.getSource();
+
+    return PyUnicode_FromString(out.str().c_str());
+}
+
 static PyObject *ScheduleEnv_split(ScheduleEnvInternal *self, PyObject *args) {
     const char *original, *first, *second;
     int factor;
@@ -124,15 +148,48 @@ static PyObject *ScheduleEnv_split(ScheduleEnvInternal *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "sssi", &original, &first, &second, &factor))
         return NULL;
 
-    for (auto var : self->vars) {
-        if (var.getName() == original) {
-            IndexVar a{std::string(first)}, b{std::string(second)};
+    IndexVar a{std::string(first)}, b{std::string(second)};
 
-            self->stmt = self->stmt.split(var, a, b, factor);
-            self->vars.push_back(a);
-            self->vars.push_back(b);
-        }
+    self->stmt =
+        self->stmt.split(IndexVar(std::string(original)), a, b, factor);
+    self->vars.push_back(a);
+    self->vars.push_back(b);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *ScheduleEnv_fuse(ScheduleEnvInternal *self, PyObject *args) {
+    const char *original_first, *original_second, *fused;
+
+    if (!PyArg_ParseTuple(args, "sss", &original_first, &original_second,
+                          &fused))
+        return NULL;
+
+    IndexVar fused_var{std::string(fused)};
+
+    self->stmt = self->stmt.fuse(IndexVar(original_first),
+                                 IndexVar(original_second), fused_var);
+    self->vars.push_back(fused_var);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *ScheduleEnv_reorder(ScheduleEnvInternal *self,
+                                     PyObject *args) {
+    PyObject *reorder_list;
+
+    if (!PyArg_ParseTuple(args, "O", &reorder_list))
+        return NULL;
+
+    std::vector<IndexVar> new_order;
+
+    size_t reorder_list_size = PyList_Size(reorder_list);
+    for (int i = 0; i < reorder_list_size; ++i) {
+        std::string cur{PyUnicode_AsUTF8(PyList_GET_ITEM(reorder_list, i))};
+        new_order.push_back(IndexVar{cur});
     }
+
+    self->stmt = self->stmt.reorder(new_order);
 
     Py_RETURN_NONE;
 }
@@ -141,6 +198,8 @@ static PyObject *ScheduleEnv_execute(ScheduleEnvInternal *self,
                                      PyObject *Py_UNUSED(ignored)) {
     self->output_tensor.compile(self->stmt);
     self->output_tensor.assemble();
+
+    std::cout << self->output_tensor.getSource();
 
     std::chrono::steady_clock::time_point begin =
         std::chrono::steady_clock::now();
@@ -165,10 +224,15 @@ static PyMethodDef ScheduleEnv_methods[] = {
     {"get_vars", (PyCFunction)ScheduleEnv_get_vars, METH_NOARGS,
      "get current index variables"},
     {"split", (PyCFunction)ScheduleEnv_split, METH_VARARGS, "split statement"},
+    {"fuse", (PyCFunction)ScheduleEnv_fuse, METH_VARARGS, "fuse statement"},
+    {"reorder", (PyCFunction)ScheduleEnv_reorder, METH_VARARGS,
+     "reorder statement"},
     {"execute", (PyCFunction)ScheduleEnv_execute, METH_NOARGS,
      "execute statement"},
     {"statement", (PyCFunction)ScheduleEnv_statement, METH_NOARGS,
      "return statement as str"},
+    {"code", (PyCFunction)ScheduleEnv_code, METH_NOARGS,
+     "return generated code as str"},
     {NULL} /* Sentinel */
 };
 
