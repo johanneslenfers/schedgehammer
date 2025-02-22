@@ -27,7 +27,7 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 80  # If >63 limit ansors iterations else it will crash
+ITERATIONS = 200  # If >63 limit ansors iterations else it will crash
 RUNS = 9
 
 results_genetic = []
@@ -264,7 +264,6 @@ if __name__ == "__main__":
     #         best_block_schedule = min(
     #             best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
     #         )
-
     plt.figure()
     plot_results_from_several_runs(results_genetic, "Genetic Search")
     plot_results_from_several_runs(results_random, "Random Search Old")
@@ -278,5 +277,7 @@ if __name__ == "__main__":
     plt.xlabel("function evaluations")
     plt.ylabel("cost")
     plt.yscale("log")
+    plt.gca().yaxis.set_major_formatter(plt.ScalarFormatter())
+    plt.gca().yaxis.get_major_formatter().set_scientific(False)
     plt.legend()
     plt.show()

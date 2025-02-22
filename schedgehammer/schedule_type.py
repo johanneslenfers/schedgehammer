@@ -11,7 +11,6 @@ from typing import Any, Callable, Generic, Type, TypeVar
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from schedgehammer.meta_tree import MetaTree, MetaTreeNode
 from schedgehammer.param_types import Param, ParamValue
 
 Schedule = TypeVar("Schedule")
@@ -143,19 +142,6 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
         self._do_inorder_traversal(node_operation)
         nx.draw(g, with_labels=True)
         plt.show()
-
-    def add_to_meta_tree(self, meta_tree: MetaTree, cost: float):
-        meta_tree.root.costs.append(cost)
-        tree_node = meta_tree.root
-        for operation_node in self.get_topological_order():
-            assert isinstance(operation_node, OperationNode)
-            if operation_node.operation.name not in tree_node.children:
-                tree_node.children[operation_node.operation.name] = MetaTreeNode(
-                    {}, operation_node.operation, [cost], tree_node
-                )
-            else:
-                tree_node.children[operation_node.operation.name].costs.append(cost)
-            tree_node = tree_node.children[operation_node.operation.name]
 
     def reapply_schedule(
         self,

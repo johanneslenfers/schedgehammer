@@ -103,11 +103,11 @@ if __name__ == "__main__":
         terminating_methods=[],
     )
     best_cost = float("inf")
-    for schedule_num in range(150):
-        costs_per_schedule.append([])
+    for schedule_num in range(200):
         schedule = param.choose_random()
         tree = param.last_generated_tree
-        for variant_num in range(10):
+        costs_per_schedule.append([len(tree.get_topological_order())])
+        for variant_num in range(1):
             print(variant_num, "/", schedule_num)
             tree.randomly_tweak_primitive_params()
             fresh_tree: ScheduleTree = create_schedule()
@@ -122,8 +122,24 @@ if __name__ == "__main__":
                 best_cost = cost
             print(best_cost, cost)
     plt.figure()
-    # Plot  results as dot diagram
-    for i, costs in enumerate(costs_per_schedule):
-        plt.plot([i] * len(costs), costs, "o")
+    # Group costs by schedule length and calculate averages of best 25%
+    costs_by_length = {}
+    for costs in costs_per_schedule:
+        length = costs[0]
+        if length not in costs_by_length:
+            costs_by_length[length] = []
+        costs_by_length[length].extend(costs[1:])
+
+    lengths = sorted(costs_by_length.keys())
+    avg_costs = []
+    for l in lengths:
+        costs = sorted(costs_by_length[l])
+        num_best = max(1, len(costs) // 4)  # Take top 25%
+        best_costs = costs[:num_best]
+        avg_costs.append(sum(best_costs) / len(best_costs))
+
+    plt.plot(lengths, avg_costs, "o-")
+    plt.xlabel("Schedule Length")
+    plt.ylabel("Average Cost (Best 25%)")
     plt.yscale("log")
     plt.show()
