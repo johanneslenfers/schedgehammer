@@ -63,7 +63,12 @@ class TuningAttempt:
             raise Exception("Budget spent!")
 
         start = time.perf_counter()
-        score = self.problem.cost_function(config)
+
+        if self.fulfills_all_constraints(config):
+            score = self.problem.cost_function(config)
+        else:
+            score = math.inf
+
         self.evaluation_cumulative_duration += time.perf_counter() - start
 
         self.record_of_evaluations.append(
@@ -83,7 +88,7 @@ class TuningAttempt:
         return score
 
     def fulfills_all_constraints(self, config: ParameterConfiguration) -> bool:
-        for constraint in self.problem.constraints:
+        for constraint in self.problem.constraint_expressions:
             if not constraint.evaluate(config):
                 return False
         return True

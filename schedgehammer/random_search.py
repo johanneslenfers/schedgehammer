@@ -8,5 +8,5 @@ from schedgehammer.tuner import Tuner, TuningAttempt
 class RandomSearch(Tuner):
     def do_tuning(self, tuning_attempt: TuningAttempt):
         while tuning_attempt.in_budget():
-            config = next(tuning_attempt.solver.solve())
+            config = tuning_attempt.solver.solve()
             tuning_attempt.evaluate_config(config)

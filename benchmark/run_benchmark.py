@@ -14,14 +14,14 @@ from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.tuner import EvalBudget
 
 ITERATIONS = 1000
-REPETITIONS = 5
+REPETITIONS = 50
 BENCHMARKS = [
     "spmm",
     "spmv",
     "sddmm",
     "mttkrp",
     "ttv",
-    # "asum",
+    "asum",
     "harris",
     "kmeans",
     "stencil",
@@ -49,18 +49,18 @@ if __name__ == "__main__":
             problem,
             [EvalBudget(ITERATIONS)],
             constrained_tuners,
-            f"results/{benchmark_name}",
+            f"results/7d64f52/{benchmark_name}/constrained",
             REPETITIONS,
             export_raw_data=True,
         )
 
         # remove constraints
-        problem.constraints = []
+        problem.constraint_expressions = []
         benchmark(
             problem,
             [EvalBudget(ITERATIONS)],
             tuners,
-            f"results/{benchmark_name}",
+            f"results/7d64f52/{benchmark_name}/unconstrained",
             REPETITIONS,
             export_raw_data=True,
         )
