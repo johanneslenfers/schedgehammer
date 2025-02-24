@@ -134,7 +134,7 @@ static PyObject *ScheduleEnv_statement(ScheduleEnvInternal *self,
 }
 
 static PyObject *ScheduleEnv_code(ScheduleEnvInternal *self,
-                                       PyObject *Py_UNUSED(ignored)) {
+                                  PyObject *Py_UNUSED(ignored)) {
     std::ostringstream out;
     out << self->output_tensor.getSource();
 
@@ -150,8 +150,13 @@ static PyObject *ScheduleEnv_split(ScheduleEnvInternal *self, PyObject *args) {
 
     IndexVar a{std::string(first)}, b{std::string(second)};
 
-    self->stmt =
-        self->stmt.split(IndexVar(std::string(original)), a, b, factor);
+    try {
+        self->stmt =
+            self->stmt.split(IndexVar(std::string(original)), a, b, factor);
+    } catch (const std::exception &e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return NULL;
+    }
     self->vars.push_back(a);
     self->vars.push_back(b);
 
@@ -167,8 +172,13 @@ static PyObject *ScheduleEnv_fuse(ScheduleEnvInternal *self, PyObject *args) {
 
     IndexVar fused_var{std::string(fused)};
 
-    self->stmt = self->stmt.fuse(IndexVar(original_first),
-                                 IndexVar(original_second), fused_var);
+    try {
+        self->stmt = self->stmt.fuse(IndexVar(original_first),
+                                     IndexVar(original_second), fused_var);
+    } catch (const std::exception &e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return NULL;
+    }
     self->vars.push_back(fused_var);
 
     Py_RETURN_NONE;
@@ -189,32 +199,40 @@ static PyObject *ScheduleEnv_reorder(ScheduleEnvInternal *self,
         new_order.push_back(IndexVar{cur});
     }
 
-    self->stmt = self->stmt.reorder(new_order);
+    try {
+        self->stmt = self->stmt.reorder(new_order);
+    } catch (const std::exception &e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
 
 static PyObject *ScheduleEnv_execute(ScheduleEnvInternal *self,
                                      PyObject *Py_UNUSED(ignored)) {
-    self->output_tensor.compile(self->stmt);
-    self->output_tensor.assemble();
+    int duration;
+    try {
+        self->output_tensor.compile(self->stmt);
+        self->output_tensor.assemble();
 
-    std::cout << self->output_tensor.getSource();
+        std::chrono::steady_clock::time_point begin =
+            std::chrono::steady_clock::now();
 
-    std::chrono::steady_clock::time_point begin =
-        std::chrono::steady_clock::now();
+        self->output_tensor.compute();
 
-    self->output_tensor.compute();
+        std::chrono::steady_clock::time_point end =
+            std::chrono::steady_clock::now();
 
-    std::chrono::steady_clock::time_point end =
-        std::chrono::steady_clock::now();
+        duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
+                .count();
 
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
-            .count();
-
-    write("y.tns", self->output_tensor);
-
+        write("y.tns", self->output_tensor);
+    } catch (const std::exception &e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return NULL;
+    }
     return PyLong_FromLong(duration);
 }
 
