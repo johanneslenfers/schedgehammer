@@ -68,6 +68,18 @@ void mini(ScheduleEnvInternal *se) {
     Tensor<double> x("x", {64}, {Dense});
     Tensor<double> y("y", {512}, {Dense});
 
+    srand(0);
+
+    for (int i = 0; i < 512; ++i) {
+        for (int j = 0; j < 64; ++j) {
+            A.insert({i, j}, (double)rand());
+        }
+    }
+
+    for (int i = 0; i < 64; ++i) {
+        x.insert({i}, (double)rand());
+    }
+
     IndexVar i("i"), j("j");
     Access matrix = A(i, j);
     y(i) = matrix * x(j);
