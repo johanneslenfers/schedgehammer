@@ -63,7 +63,7 @@ void spmv(ScheduleEnvInternal *se) {
 }
 
 void mini(ScheduleEnvInternal *se) {
-    Format csr({Dense, Sparse});
+    Format csr({Dense, Dense});
     Tensor<double> A("A", {512, 64}, csr);
     Tensor<double> x("x", {64}, {Dense});
     Tensor<double> y("y", {512}, {Dense});
