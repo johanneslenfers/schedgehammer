@@ -1,7 +1,5 @@
-import json
 import os
 import sys
-import threading
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -12,7 +10,7 @@ from matplotlib import pyplot as plt
 from tvm import te
 
 from examples.tvm_api import REORDER, SPLIT, TILE
-from schedgehammer.schedule_type import ScheduleParam, SchedulePlanningTree, ScheduleContext
+from schedgehammer.schedules.schedule_type import ScheduleParam, ScheduleContext
 
 M = 512
 K = 512

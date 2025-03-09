@@ -19,7 +19,6 @@ class Param(ABC, Generic[T]):
     def choose_random(self, current_value: Optional[T] = None) -> T:
         raise NotImplementedError
 
-    @abstractmethod
     def get_value_range(self) -> list[T]:
         raise NotImplementedError
 

@@ -1,12 +1,12 @@
 import random
 from dataclasses import dataclass
 
-from schedgehammer.schedule_type import ScheduleParam, SchedulePlanningTree
+from schedgehammer.schedules.schedule_type import ScheduleParam
 from schedgehammer.tuner import Tuner, TuningAttempt
 
 
 @dataclass
-class SchedulesGeneticTuner(Tuner):
+class ScheduleGeneticTuner(Tuner):
     population_size: int = 100
     elitism_share: float = 0.05
     reproduction_share: float = 0.3

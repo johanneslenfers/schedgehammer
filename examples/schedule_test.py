@@ -1,11 +1,7 @@
-import json
 import os
 import sys
-import threading
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-import concurrent.futures
 
 import numpy
 import numpy as np
@@ -15,11 +11,11 @@ from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
 from examples.tvm_api import REORDER, SPLIT, TILE
-from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.problem import Problem
-from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleParam, SchedulePlanningTree, ScheduleContext
+from schedgehammer.schedules.schedule_type import ScheduleParam, ScheduleContext
 from schedgehammer.tuner import EvalBudget
+from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
+from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 
 M = 512
 K = 512
@@ -225,10 +221,10 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
 
 if __name__ == "__main__":
     for result_list, tuner_class in [
-        (results_genetic, GeneticTuner),
-        (results_random, RandomSearch),
+        (results_genetic, ScheduleGeneticTuner),
+        (results_random, ScheduleRandomSearch),
     ]:
-        tuner = tuner_class(check_constraints=False)
+        tuner = tuner_class()
         for run in range(RUNS):
             print("\033[95mRUN:", run, "\033[0m")
             result_list.append([])
@@ -245,6 +241,7 @@ if __name__ == "__main__":
                     {"schedule": param},
                     create_cost_function(result_list),
                     [],
+                    init_solver=False
                 ),
                 budgets=[EvalBudget(ITERATIONS)],
             )

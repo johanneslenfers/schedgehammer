@@ -4,8 +4,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from tvm import te
 
-from schedgehammer.schedule_type import (
-    OperationNode,
+from schedgehammer.schedules.schedule_type import (
     ScheduleParam,
     ScheduleContext,
 )

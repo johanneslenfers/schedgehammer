@@ -3,17 +3,9 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-import numpy
-import numpy as np
-import tvm
-from matplotlib import pyplot as plt
-from tvm import auto_scheduler, te
-from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
+from tvm import te
 
-from schedgehammer.problem import Problem
-from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleEnvironment, ScheduleParam
-from schedgehammer.tuner import EvalBudget
+from schedgehammer.schedules.schedule_type import ScheduleEnvironment
 
 M = 512
 K = 512

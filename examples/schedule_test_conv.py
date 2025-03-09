@@ -2,7 +2,6 @@ import os
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-import numpy
 import numpy as np
 import tvm
 import tvm.topi as topi
@@ -11,11 +10,11 @@ from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
 from examples.tvm_api import REORDER, SPLIT, TILE
-from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.problem import Problem
-from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleParam, ScheduleContext
+from schedgehammer.schedules.schedule_type import ScheduleParam, ScheduleContext
 from schedgehammer.tuner import EvalBudget
+from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
+from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 
 N, H, W, C_in = 1, 64, 64, 3  # Batch size, height, width, input channels
 K_h, K_w, C_out = 3, 3, 128  # Kernel height, kernel width, output channels
@@ -85,11 +84,12 @@ def create_schedule() -> ScheduleContext:
     # s[Output].bind(wi, thread_x)
     
     return ScheduleContext(
-        Output.op.axis + Output.op.reduce_axis,
+        [Output.op.axis[0], Output.op.axis[1], Output.op.axis[2], Output.op.axis[3],
+         Output.op.reduce_axis[0], Output.op.reduce_axis[1], Output.op.reduce_axis[2]],
         {
             'schedule': s,
             'tensor': Output,
-            'alltensors': [Output, Input, Kernel],
+            'alltensors': [Input, Kernel, Output],
         }
     )
 
@@ -206,12 +206,12 @@ def get_ansor_results():
 
 
 if __name__ == "__main__":
-    get_ansor_results()
+    # get_ansor_results()
     for result_list, tuner_class in [
-        (results_genetic, GeneticTuner),
-        (results_random, RandomSearch),
+        (results_genetic, ScheduleGeneticTuner),
+        (results_random, ScheduleRandomSearch),
     ]:
-        tuner = tuner_class(check_constraints=False)
+        tuner = tuner_class()
         for run in range(RUNS):
             print("\033[95mRUN:", run, "\033[0m")
             result_list.append([])
@@ -221,7 +221,6 @@ if __name__ == "__main__":
                 2,
                 13,
                 api_description=[TILE, SPLIT, REORDER],
-                terminating_methods=[],
             )
             tuner.tune(
                 problem=Problem(
@@ -229,6 +228,7 @@ if __name__ == "__main__":
                     {"schedule": param},
                     create_cost_function(result_list),
                     [],
+                    init_solver=False
                 ),
                 budgets=[EvalBudget(ITERATIONS)],
             )
