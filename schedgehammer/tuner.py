@@ -117,9 +117,9 @@ class TuningAttempt:
 
 class Tuner(ABC):
     def tune(self, problem: Problem, budgets: list[Budget]) -> TuningResult:
-        self.attempt = TuningAttempt(problem, budgets)
-        self.do_tuning(self.attempt)
-        return self.attempt.create_result()
+        attempt = TuningAttempt(problem, budgets)
+        self.do_tuning(attempt)
+        return attempt.create_result()
 
     @abstractmethod
     def do_tuning(self, tuning_attempt: TuningAttempt):
