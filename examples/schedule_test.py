@@ -9,7 +9,6 @@ import concurrent.futures
 
 import numpy
 import numpy as np
-import stopit
 import tvm
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
@@ -19,7 +18,7 @@ from examples.tvm_api import REORDER, SPLIT, TILE
 from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
+from schedgehammer.schedule_type import ScheduleParam, SchedulePlanningTree, ScheduleContext
 from schedgehammer.tuner import EvalBudget
 
 M = 512
@@ -27,8 +26,8 @@ K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 200  # If >63 limit ansors iterations else it will crash
-RUNS = 9
+ITERATIONS = 100  # If >63 limit ansors iterations else it will crash
+RUNS = 3
 
 results_genetic = []
 results_random = []
@@ -62,7 +61,7 @@ class StoreResultCallback(PythonBasedMeasureCallback):
                 ansor_results[-1].append(ansor_results[-1][-1])
 
 
-def create_schedule() -> ScheduleTree:
+def create_schedule() -> ScheduleContext:
     k = te.reduce_axis((0, K), "k")
     A = te.placeholder((M, K), name="A")
     B = te.placeholder((K, N), name="B")
@@ -71,15 +70,14 @@ def create_schedule() -> ScheduleTree:
     # Default schedule
     s = te.create_schedule(C.op)
 
-    tree = ScheduleTree(
-        schedule=s,
-        computed_tensor=C,
-        static_tensors=[A, B],
+    return ScheduleContext(
+        [C.op.axis[0], C.op.axis[1], C.op.reduce_axis[0]],
+        {
+            'schedule': s,
+            'tensor': C,
+            'alltensors': [A, B, C],
+        }
     )
-    tree.add_original_axis(C.op.axis[0])
-    tree.add_original_axis(C.op.axis[1])
-    tree.add_original_axis(C.op.reduce_axis[0])
-    return tree
 
 
 def create_cost_function(result_list):
@@ -129,10 +127,10 @@ def create_cost_function(result_list):
     return cost_function
 
 
-def finish_schedule(tree: ScheduleTree):
+def finish_schedule(ctx: ScheduleContext):
     return tvm.build(
-        tree.schedule,
-        tree.static_tensors + [tree.computed_tensor],
+        ctx.environment['schedule'],
+        ctx.environment['alltensors'],
         name="anything",
     )
 
@@ -189,9 +187,9 @@ def get_ansor_results():
 
 def get_baseline() -> float:
     # Find time of unchanged schedule
-    env = create_schedule()
+    env = create_schedule().environment
     func = tvm.build(
-        env.schedule, env.static_args + [env.computed_arg], name="anything"
+        env['schedule'], env['alltensors'], name="anything"
     )
     dev = tvm.device("llvm", 0)
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
@@ -203,10 +201,10 @@ def get_baseline() -> float:
 
 
 def get_blocking_baseline(bn=32, kfactor=4) -> float:
-    env = create_schedule()
+    env = create_schedule().environment
     # Apply blocking as described in https://tvm.apache.org/docs/v0.13.0/how_to/optimize_operators/opt_gemm.html
-    C = env.computed_arg
-    s = env.schedule
+    C = env['tensor']
+    s = env['schedule']
     mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
     (kaxis,) = s[C].op.reduce_axis
     ko, ki = s[C].split(kaxis, factor=kfactor)
@@ -214,7 +212,7 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
     s[C].reorder(mo, no, ko, ki, mi, ni)
 
     func = tvm.build(
-        env.schedule, env.static_args + [env.computed_arg], name="anything"
+        s, env['alltensors'], name="anything"
     )
     dev = tvm.device("llvm", 0)
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
@@ -240,7 +238,6 @@ if __name__ == "__main__":
                 2,
                 10,
                 api_description=[TILE, SPLIT, REORDER],
-                terminating_methods=[],
             )
             tuner.tune(
                 problem=Problem(

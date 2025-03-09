@@ -59,8 +59,10 @@ class TuningAttempt:
         if not self.in_budget():
             raise Exception("Budget spent!")
 
+        translated_config = self.translate_config_for_evaluation(config)
+
         start = time.perf_counter()
-        score = self.problem.cost_function(config)
+        score = self.problem.cost_function(translated_config)
         self.evaluation_cumulative_duration += time.perf_counter() - start
 
         self.record_of_evaluations.append(
@@ -77,6 +79,12 @@ class TuningAttempt:
             self.best_score = score
             self.best_config = config
         return score
+
+    def translate_config_for_evaluation(self, config: ParameterConfiguration) -> ParameterConfiguration:
+        new_config = {}
+        for param_name, param in self.problem.params.items():
+            new_config[param_name] = param.translate_for_evaluation(config[param_name])
+        return new_config
 
     def fulfills_all_constraints(self, config: ParameterConfiguration) -> bool:
         for constraint in self.problem.constraints:

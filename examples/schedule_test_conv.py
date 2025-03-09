@@ -9,13 +9,12 @@ import tvm.topi as topi
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
-from tvm.contrib import ndk
 
 from examples.tvm_api import REORDER, SPLIT, TILE
 from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.problem import Problem
 from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
+from schedgehammer.schedule_type import ScheduleParam, ScheduleContext
 from schedgehammer.tuner import EvalBudget
 
 N, H, W, C_in = 1, 64, 64, 3  # Batch size, height, width, input channels
@@ -59,7 +58,7 @@ class StoreResultCallback(PythonBasedMeasureCallback):
                 ansor_results[-1].append(ansor_results[-1][-1])
 
 
-def create_schedule() -> ScheduleTree:
+def create_schedule() -> ScheduleContext:
     Input = te.placeholder((N, H, W, C_in), dtype=DTYPE, name="Input")
     Kernel = te.placeholder((K_h, K_w, C_in, C_out), dtype=DTYPE, name="Kernel")
 
@@ -84,20 +83,15 @@ def create_schedule() -> ScheduleTree:
     # # Parallelize computation
     # s[Output].bind(ho, block_x)
     # s[Output].bind(wi, thread_x)
-
-    tree = ScheduleTree(
-        schedule=s,
-        computed_tensor=Output,
-        static_tensors=[Input, Kernel],
+    
+    return ScheduleContext(
+        Output.op.axis + Output.op.reduce_axis,
+        {
+            'schedule': s,
+            'tensor': Output,
+            'alltensors': [Output, Input, Kernel],
+        }
     )
-    tree.add_original_axis(Output.op.axis[0])
-    tree.add_original_axis(Output.op.axis[1])
-    tree.add_original_axis(Output.op.axis[2])
-    tree.add_original_axis(Output.op.axis[3])
-    tree.add_original_axis(Output.op.reduce_axis[0])
-    tree.add_original_axis(Output.op.reduce_axis[1])
-    tree.add_original_axis(Output.op.reduce_axis[2])
-    return tree
 
 
 def create_cost_function(result_list):
@@ -127,12 +121,12 @@ def create_cost_function(result_list):
     return cost_function
 
 
-def finish_schedule(tree: ScheduleTree):
+def finish_schedule(ctx: ScheduleContext):
     return tvm.build(
-        tree.schedule,
-        tree.static_tensors + [tree.computed_tensor],
+        ctx.environment['schedule'],
+        ctx.environment['alltensors'],
         target="llvm",
-        name="Convolution",
+        name="anything",
     )
 
 

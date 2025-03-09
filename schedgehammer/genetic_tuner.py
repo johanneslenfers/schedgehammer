@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass
 
-from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
+from schedgehammer.schedule_type import ScheduleParam, SchedulePlanningTree
 from schedgehammer.tuner import Tuner, TuningAttempt
 
 
@@ -46,14 +46,6 @@ class GeneticTuner(Tuner):
             while attempt.in_budget():
                 ret, tree, old_cost = random.choice(elites)
                 tree.randomly_tweak_primitive_params()
-                fresh_tree: ScheduleTree = schedule_param.create_schedule()
-                tree.reapply_schedule(
-                    fresh_tree.schedule,
-                    fresh_tree.computed_tensor,
-                    fresh_tree.static_tensors,
-                    [axis.axis for axis in fresh_tree.original_axes],
-                )
-                ret[schedule_param_name] = schedule_param.finish_schedule(tree)
                 cost = attempt.evaluate_config(ret)
                 if cost < old_cost:
                     print(

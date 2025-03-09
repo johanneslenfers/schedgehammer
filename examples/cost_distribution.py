@@ -5,22 +5,14 @@ import threading
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-import concurrent.futures
-
 import numpy
 import numpy as np
-import stopit
 import tvm
 from matplotlib import pyplot as plt
-from tvm import auto_scheduler, te
-from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
+from tvm import te
 
 from examples.tvm_api import REORDER, SPLIT, TILE
-from schedgehammer.genetic_tuner import GeneticTuner
-from schedgehammer.problem import Problem
-from schedgehammer.random_search import RandomSearch
-from schedgehammer.schedule_type import ScheduleParam, ScheduleTree
-from schedgehammer.tuner import EvalBudget
+from schedgehammer.schedule_type import ScheduleParam, SchedulePlanningTree, ScheduleContext
 
 M = 512
 K = 512
@@ -43,7 +35,7 @@ def plot_results_from_several_runs(results, label) -> range:
     return xs
 
 
-def create_schedule() -> ScheduleTree:
+def create_schedule() -> ScheduleContext:
     k = te.reduce_axis((0, K), "k")
     A = te.placeholder((M, K), name="A")
     B = te.placeholder((K, N), name="B")
@@ -52,15 +44,14 @@ def create_schedule() -> ScheduleTree:
     # Default schedule
     s = te.create_schedule(C.op)
 
-    tree = ScheduleTree(
-        schedule=s,
-        computed_tensor=C,
-        static_tensors=[A, B],
+    return ScheduleContext(
+        [C.op.axis[0], C.op.axis[1], C.op.reduce_axis[0]],
+        {
+            'schedule': s,
+            'tensor': C,
+            'alltensors': [A, B, C],
+        }
     )
-    tree.add_original_axis(C.op.axis[0])
-    tree.add_original_axis(C.op.axis[1])
-    tree.add_original_axis(C.op.reduce_axis[0])
-    return tree
 
 
 def cost_function(config):
@@ -85,10 +76,10 @@ def cost_function(config):
     return result
 
 
-def finish_schedule(tree: ScheduleTree):
+def finish_schedule(ctx: ScheduleContext):
     return tvm.build(
-        tree.schedule,
-        tree.static_tensors + [tree.computed_tensor],
+        ctx.environment['schedule'],
+        ctx.environment['alltensors'],
         name="anything",
     )
 
@@ -100,24 +91,16 @@ if __name__ == "__main__":
         2,
         10,
         api_description=[TILE, SPLIT, REORDER],
-        terminating_methods=[],
     )
     best_cost = float("inf")
     for schedule_num in range(200):
         schedule = param.choose_random()
         tree = param.last_generated_tree
-        costs_per_schedule.append([len(tree.get_topological_order())])
+        costs_per_schedule.append([len(tree.operations)])
         for variant_num in range(1):
             print(variant_num, "/", schedule_num)
             tree.randomly_tweak_primitive_params()
-            fresh_tree: ScheduleTree = create_schedule()
-            tree.reapply_schedule(
-                fresh_tree.schedule,
-                fresh_tree.computed_tensor,
-                fresh_tree.static_tensors,
-                [axis.axis for axis in fresh_tree.original_axes],
-            )
-            cost = cost_function({"schedule": finish_schedule(tree)})
+            cost = cost_function({"schedule": param.translate_for_evaluation(tree)})
             if cost < best_cost:
                 best_cost = cost
             print(best_cost, cost)

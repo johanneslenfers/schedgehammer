@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-import copy
 import os
 import random
 import sys
 import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, Type, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from schedgehammer.param_types import Param, ParamValue
+from schedgehammer.param_types import Param, ParamValue, T
 
 Schedule = TypeVar("Schedule")
 Axis = TypeVar("Axis")
 Tensor = TypeVar("Tensor")
+Environment = TypeVar("Environment")
 CompiledSchedule = TypeVar("CompiledSchedule")
 
 
@@ -27,91 +27,101 @@ class AxisParam:
 
 @dataclass
 class AxisPoolPermutationParam:
-    pass
+    consuming: bool = False
 
 
 MethodParamType = AxisParam | AxisPoolPermutationParam | Param
 
+@dataclass
+class ReturnTypeAxesList:
+    axes_amount: int
+
+class ReturnTypeNone:
+    pass
+
+MethodReturnType = ReturnTypeAxesList | ReturnTypeNone
 
 @dataclass
 class Operation(Generic[Axis, Tensor]):
     name: str
-    compiler_operation: Callable[
-        [Tensor, list, dict], list[Axis]
+    function_call: Callable[
+        [Environment, dict[str, ParamValue | Axis | list[Axis]]], list[Axis] | None
     ]  # Pass tensor, get back operation to call with the generated args
     params: dict[str, MethodParamType]
+    return_type: MethodReturnType
 
-    def apply_random_on_tree(self, schedule_tree: ScheduleTree) -> ScheduleTree:
+    def preconditions_met(self, schedule_tree: SchedulePlanningTree):
+        axes_needed = len(list(filter(lambda p: isinstance(p, AxisParam), self.params.values())))
+        axes_got = len(schedule_tree.unconsumed_axes)
+        return axes_got >= axes_needed
+
+    def apply_random_on_tree(self, schedule_tree: SchedulePlanningTree):
         operation_node = OperationNode(self, {}, {}, [])
         non_consumed_axes_nodes = []
         generated_axes_nodes = []
-        compiler_args = {}
-        all_axes: list[AxisNode] = schedule_tree.get_leave_axes()
+
         for param_name, param_type in self.params.items():
             if isinstance(param_type, Param):
-                param_val = param_type.choose_random()
-                operation_node.args[param_name] = param_val
+                operation_node.parameters[param_name] = param_type.choose_random()
             elif isinstance(param_type, AxisPoolPermutationParam):
-                operation_node.input_axes[param_name] = all_axes.copy()
-                random.shuffle(all_axes)
-                for axis_node in all_axes:
-                    copied_axis = AxisNode(axis_node.id, axis_node.axis, None)
-                    non_consumed_axes_nodes.append(copied_axis)
-                param_val: list[Axis] = [axis.axis for axis in all_axes]
+                # AxisPoolPermutationParam uses all available axes.
+                operation_node.input_axes[param_name] = schedule_tree.unconsumed_axes.copy()
+                random.shuffle(operation_node.input_axes[param_name])
+
+                if param_type.consuming:
+                    schedule_tree.unconsumed_axes = []
+                else:
+                    for axis_node in schedule_tree.unconsumed_axes:
+                        non_consumed_axes_nodes.append(AxisNode(axis_node.id))
             elif isinstance(param_type, AxisParam):
                 if param_type.force_inner:
-                    param_val = max(all_axes, key=lambda x: x.id)
-                    all_axes.remove(param_val)
+                    param_val = max(schedule_tree.unconsumed_axes, key=lambda x: x.id)
                 else:
-                    param_val: AxisNode = all_axes.pop(random.randrange(len(all_axes)))
+                    param_val: AxisNode = random.choice(schedule_tree.unconsumed_axes)
+
                 operation_node.input_axes[param_name] = param_val
-                if not param_type.consuming:
-                    copied_axis = AxisNode(param_val.id, param_val.axis, None)
-                    non_consumed_axes_nodes.append(copied_axis)
-                param_val = param_val.axis
-            compiler_args[param_name] = param_val
-        # Operation payload is ready, now call it
-        tensor = schedule_tree.schedule[schedule_tree.computed_tensor]
-        if "" in compiler_args.keys():
-            # Not a kwarg, but a positional arg
-            new_axes = self.compiler_operation(
-                tensor,
-                compiler_args[""]
-                if isinstance(compiler_args[""], list)
-                else [compiler_args[""]],
-                {},
-            )
-        else:
-            new_axes = self.compiler_operation(tensor, [], compiler_args)
-        # Create operation node and new axis nodes for the generated axes and put them in the tree
-        for axis in new_axes if new_axes else []:
-            generated_axes_nodes.append(AxisNode(schedule_tree.max_id + 1, axis, None))
-            schedule_tree.max_id += 1
+                if param_type.consuming:
+                    schedule_tree.unconsumed_axes.remove(param_val)
+                else:
+                    non_consumed_axes_nodes.append(AxisNode(param_val.id))
+
+            else:
+                raise NotImplementedError("unsupported parameter type")
+
+        if isinstance(self.return_type, ReturnTypeAxesList):
+            for _ in range(self.return_type.axes_amount):
+                generated_axes_nodes.append(AxisNode(schedule_tree.next_axis_id))
+                schedule_tree.next_axis_id += 1
+
         operation_node.output_axes = non_consumed_axes_nodes + generated_axes_nodes
+        schedule_tree.unconsumed_axes += generated_axes_nodes
+
         for input_axis in operation_node.input_axes.values():
-            # last step because operation might fail before this,
-            # in that case we don't want to change the tree
             if isinstance(input_axis, AxisNode):
                 input_axis.processed_in = operation_node
             else:
                 for axis_node in input_axis:
                     axis_node.processed_in = operation_node
 
+        schedule_tree.operations.append(operation_node)
+
 
 @dataclass
-class ScheduleTree(Generic[Schedule, Axis, Tensor]):
+class SchedulePlanningTree:
     """
     Rules of the schedule tree:
     - Each AxisNode can only be processed once. If the operation is not consuming,
     create a new axisNode with the same id outgoing from the operation.
     """
+    operations: list[OperationNode]
+    unconsumed_axes: list[AxisNode] = field(default_factory=lambda: [])
+    next_axis_id: int = 0
 
-    schedule: Schedule
-    computed_tensor: Tensor
-    static_tensors: list[Tensor]
-    original_axes: list[AxisNode] = field(default_factory=lambda: [])
-    max_id: int = 0
-    meta: list[str] = field(default_factory=lambda: [])  # For debugging
+    def __init__(self, initial_axes_amount: int):
+        self.operations = []
+        self.initial_axes_amount = initial_axes_amount
+        self.unconsumed_axes = [AxisNode(i) for i in range(initial_axes_amount)]
+        self.next_axis_id = self.initial_axes_amount
 
     def visualize(self):
         """
@@ -143,102 +153,6 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
         nx.draw(g, with_labels=True)
         plt.show()
 
-    def reapply_schedule(
-        self,
-        fresh_schedule: Schedule,
-        fresh_tensor: Tensor,
-        fresh_static_tensors: list[Tensor],
-        fresh_axes: list[Axis],
-    ):
-        """
-        After modifying the tree, reapply the schedule.
-        """
-        self.static_tensors = fresh_static_tensors
-        self.schedule = fresh_schedule
-        self.computed_tensor = fresh_tensor
-        tensor = self.schedule[self.computed_tensor]
-        for i, axis in enumerate(fresh_axes):
-            self.original_axes[i].axis = axis
-        topological_order = self.get_topological_order()
-        for node in topological_order:
-            """
-            Assumptions we can make at any step in the loop:
-            - TvmAxes of the Parent nodes are already updated
-            - For the output nodes of each operation node the leftmost nodes will be the
-            non-consumed axes nodes.
-            """
-            compiler_args = node.args.copy()
-            for arg_name, arg_val in node.input_axes.items():
-                compiler_args[arg_name] = (
-                    arg_val.axis  # The axis of the node
-                    if isinstance(arg_val, AxisNode)  # If it is a single axis
-                    else [axis_node.axis for axis_node in arg_val]  # Else the axis for
-                    # each node in the list
-                )
-            if "" in compiler_args.keys():
-                # Not a kwarg, but a positional arg
-                try:
-                    new_axes = (
-                        node.operation.compiler_operation(
-                            tensor,
-                            compiler_args[""]
-                            if isinstance(compiler_args[""], list)
-                            else [compiler_args[""]],
-                            {},
-                        )
-                        or []
-                    )
-                except Exception as e:
-                    print(self.meta)
-                    print(traceback.format_exc())
-            else:
-                try:
-                    new_axes = (
-                        node.operation.compiler_operation(tensor, [], compiler_args)
-                        or []
-                    )
-                except Exception as e:
-                    print(self.meta)
-                    print(traceback.format_exc())
-            parents_by_id = {}
-            for parent in node.input_axes.values():
-                if isinstance(parent, AxisNode):
-                    parents_by_id[parent.id] = parent
-                else:
-                    for parent_axis_node in parent:
-                        parents_by_id[parent_axis_node.id] = parent_axis_node
-
-            new_axes_start_index = len(node.output_axes) - len(new_axes)
-            for nonconsumed_axis_node in node.output_axes[:new_axes_start_index]:
-                nonconsumed_axis_node.axis = parents_by_id[
-                    nonconsumed_axis_node.id
-                ].axis
-            for i, generated_axis_node in enumerate(
-                node.output_axes[new_axes_start_index:]
-            ):
-                generated_axis_node.axis = new_axes[i]
-
-    def add_original_axis(self, axis: Axis):
-        self.original_axes.append(AxisNode(self.max_id + 1, axis, None))
-        self.max_id += 1
-
-    def _do_bfs(self, node_operation: Callable[[Node], bool], start_node: Node = None):
-        """
-        Helper method doing bfs on the tree and applying a custom operation on each node.
-        The node operation shall return True if the bfs should be ended.
-        """
-        queue = [start_node] if start_node else self.original_axes.copy()
-        visited = set()
-
-        while queue:
-            node = queue.pop(0)
-            if id(node) in visited:
-                continue
-            visited.add(id(node))
-            if node_operation(node):
-                return
-            queue.extend(node.get_children())
-
     def _do_inorder_traversal(self, node_operation: Callable[[Node], None]):
         """
         Helper method doing in-order traversal of the tree and applying a custom
@@ -254,111 +168,39 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
             for child in node.get_children():
                 traverse(child)
 
-        for axis in self.original_axes:
-            traverse(axis)
-
-    def get_leave_axes(self) -> list[AxisNode]:
-        """
-        Make in-order traversal of the tree and return just the leave Axes.
-        """
-        leave_axes = []
-
-        def node_operation(node: Node):
-            if isinstance(node, AxisNode) and node.processed_in is None:
-                leave_axes.append(node)
-
-        self._do_inorder_traversal(node_operation)
-        assert not any(axes.processed_in for axes in leave_axes)
-        return leave_axes
-
-    def __len__(self):
-        """
-        The len of a schedule is the number of operations.
-        """
-        operation_nodes = []
-
-        def node_operation(node: Node):
-            if isinstance(node, OperationNode):
-                operation_nodes.append(node)
-
-        self._do_inorder_traversal(node_operation)
-        return len(operation_nodes)
+        for op in self.operations:
+            traverse(op)
 
     def __eq__(self, other):
         return id(self) == id(other)
 
     def __str__(self):
         result = ["--- Schedule Tree ---"]
-        nodes = self.get_topological_order(operations_only=False)
-        for node in nodes:
+        for node in self.operations:
             result.append(str(node))
         result.append("--- End of Schedule Tree ---")
         return "\n".join(result)
-
-    def get_topological_order(self, operations_only=True) -> list[Node]:
-        def sortUtil(node, visited, stack):
-            visited.add(id(node))
-
-            for element in node.get_children():
-                if id(element) not in visited:
-                    sortUtil(element, visited, stack)
-            if isinstance(node, OperationNode) or not operations_only:
-                stack.insert(0, node)
-
-        visited = set()
-
-        stack = []
-
-        for element in self.original_axes:
-            sortUtil(element, visited, stack)
-
-        return stack
-
-    def get_innermost_axis(self) -> AxisNode:
-        """
-        Get Axis Node with highest id
-        """
-        return max(self.get_leave_axes(), key=lambda x: x.id)
 
     def randomly_tweak_primitive_params(self) -> None:
         """
         Go through all operations and give the primitive params new random values.
         """
-        for operation_node in self.get_topological_order():
+        for operation_node in self.operations:
             for param_name, param in operation_node.operation.params.items():
                 if isinstance(param, Param):
-                    operation_node.args[param_name] = param.choose_random()
+                    operation_node.parameters[param_name] = param.choose_random()
 
-    def delete_last_operation(self) -> None:
-        """
-        Replace the last operation with a random new one
-        """
-        last_operation = self.get_topological_order()[-1]
-        self.delete_subtree(last_operation)
-
-    def delete_subtree(self, start_node: Node) -> None:
-        assert isinstance(start_node, OperationNode)
-
-        def node_operaton(node):
-            if isinstance(node, AxisNode):
-                return
-            for input in node.input_axes.values():
-                if isinstance(input, AxisNode):
-                    input.processed_in = None
-                else:
-                    for axis_node in input:
-                        axis_node.processed_in = None
-
-        self._do_bfs(node_operaton, start_node=start_node)
+    def delete_starting_with_operation(self, operation_index: int):
+        while len(self.operations) > operation_index:
+            operation = self.operations.pop()
+            for axis in operation.input_axes.values():
+                axis.processed_in = None
+        del operation
 
     def randomly_merge_with_other_schedule(
         self,
-        other_schedule: ScheduleTree,
-        fresh_schedule: Schedule,
-        fresh_tensor: Tensor,
-        fresh_static_tensors: list[Tensor],
-        fresh_axes: list[Axis],
-        max_legnth: int,
+        other_schedule: SchedulePlanningTree,
+        max_length: int,
     ):
         """
         1. Pick any operation from this tree
@@ -367,18 +209,15 @@ class ScheduleTree(Generic[Schedule, Axis, Tensor]):
         4. Pick a starting point in the topological order of the other tree
         5. Iteratively apply the operations from the other tree
         """
-        topological_order = self.get_topological_order()
-        random_node = random.choice(topological_order)
+        random_node = random.choice(self.operations)
 
-        self.delete_subtree(random_node)
-        self.reapply_schedule(
-            fresh_schedule, fresh_tensor, fresh_static_tensors, fresh_axes
-        )
-        to_be_added = other_schedule.get_topological_order()
-        start_index = random.randint(0, len(topological_order) - 1)
+        self.delete_starting_with_operation(self.operations.index(random_node))
+
+        to_be_added = other_schedule.operations
+        start_index = random.randint(0, len(to_be_added) - 1)
         to_be_added = to_be_added[start_index:]
         for node in to_be_added:
-            if len(self) > max_legnth:
+            if len(self.operations) > max_length:
                 break
             node.operation.apply_random_on_tree(self)
 
@@ -390,22 +229,21 @@ class Node(ABC):
 
 
 @dataclass
-class AxisNode(Node, Generic[Axis]):
+class AxisNode(Node):
     id: int
-    axis: Axis
     processed_in: OperationNode | None = None
 
     def get_children(self) -> list[Node]:
         return [self.processed_in] if self.processed_in else []
 
     def __str__(self):
-        return self.axis.var.name
+        return self.id
 
 
 @dataclass
-class OperationNode:
+class OperationNode(Node):
     operation: Operation
-    args: dict[str, ParamValue]
+    parameters: dict[str, ParamValue]
     input_axes: dict[str, AxisNode | list[AxisNode]]
     output_axes: list[AxisNode]
 
@@ -415,70 +253,97 @@ class OperationNode:
     def __str__(self):
         return f"[{self.operation.name}|{'-'.join([str(axis) if isinstance(axis, AxisNode) else 'all' for axis in self.input_axes.values()])}|{'-'.join([str(axis) for axis in self.output_axes])}]"
 
-
 @dataclass
+class ScheduleContext:
+    axes: list[Any]
+    environment: Any
+
+
 class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
-    create_schedule: Callable[[None], ScheduleTree]
-    finish_schedule: Callable[[ScheduleTree], CompiledSchedule]
+    create_schedule: Callable[[], ScheduleContext]
+    finish_schedule: Callable[[ScheduleContext], CompiledSchedule]
     min_length: int
     max_length: int
     api_description: list[Operation]
-    terminating_methods: list[Operation]
-    last_generated_tree: ScheduleTree | None = None
+    initial_axes_amount: int
+    last_generated_tree: SchedulePlanningTree | None = None
 
-    def try_appending_method(
-        self,
-        schedule_tree: ScheduleTree,
-        method_candidates: list[Operation],
-    ) -> tuple[ScheduleTree, list[Operation], Operation | None]:
-        """
-        Tries to append one of the method candidates to the schedule.
-        Returns:
-            - Updated schedule
-            - Updated method candidates
-            - Chosen method type
-        """
-        method = method_candidates.pop(random.randrange(len(method_candidates)))
-        try:
-            method.apply_random_on_tree(schedule_tree)
-            if len(schedule_tree) < self.min_length:
-                method_candidates = [
-                    method
-                    for method in self.api_description
-                    if method not in self.terminating_methods
-                ]
-            else:
-                method_candidates = self.api_description.copy()
-            return schedule_tree, method_candidates, method
-        except Exception:
-            print(f"\033[93mCouldn't apply {method.name}\033[0m")
-        return schedule_tree, method_candidates, None
+    def __init__(self,
+                 create_schedule: Callable[[], ScheduleContext],
+                 finish_schedule: Callable[[ScheduleContext], CompiledSchedule],
+                 min_length: int,
+                 max_length: int,
+                 api_description: list[Operation],
+                 ) -> None:
+        self.create_schedule = create_schedule
+        self.finish_schedule = finish_schedule
+        self.min_length = min_length
+        self.max_length = max_length
+        self.api_description = api_description
+        # Execute create_schedule once in order to get amount of initial axes.
+        self.initial_axes_amount = len(self.create_schedule().axes)
 
-    def create_random_schedule(self) -> ScheduleTree:
+    def create_random_schedule(self) -> SchedulePlanningTree:
         while True:
-            schedule_tree = self.create_schedule()
+            schedule_tree = SchedulePlanningTree(self.initial_axes_amount)
             desired_length = random.randint(self.min_length, self.max_length)
-            method_candidates = [
-                method
-                for method in self.api_description
-                if method not in self.terminating_methods
-            ]
-            while len(schedule_tree) < desired_length:
-                schedule_tree, method_candidates, method = self.try_appending_method(
-                    schedule_tree, method_candidates
-                )
-                if method in self.terminating_methods:
+
+            while len(schedule_tree.operations) < desired_length:
+                method_candidates = list(filter(
+                    lambda method: method.preconditions_met(schedule_tree),
+                    self.api_description
+                ))
+                if len(method_candidates) == 0:
                     break
-                if not method_candidates:
-                    break
-            if len(schedule_tree) >= self.min_length:
-                break
-        return schedule_tree
+                chosen_method: Operation = random.choice(method_candidates)
+                chosen_method.apply_random_on_tree(schedule_tree)
+
+
+            else:  # If inner while exited normally
+                return schedule_tree
 
     def choose_random(self, current_value=None):
         while True:
             try:
                 self.last_generated_tree = self.create_random_schedule()
-                return self.finish_schedule(self.last_generated_tree)
+                return self.last_generated_tree
             except Exception as e:
+                traceback.print_exc()
                 print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
+
+    def translate_for_evaluation(self, schedule_tree: SchedulePlanningTree) -> T:
+        schedule_context = self.create_schedule()
+        # Dict to keep track of axis.
+        axes = {i: axis for i, axis in enumerate(schedule_context.axes)}
+
+        for i_operation, operation in enumerate(schedule_tree.operations):
+            translated_input_axes: dict = {}
+
+            amount_non_consumed_axes = 0
+
+            for param_name, param in operation.input_axes.items():
+                if isinstance(param, AxisNode):
+                    translated_input_axes[param_name] = axes[param.id]
+                    if not operation.operation.params[param_name].consuming:
+                        amount_non_consumed_axes += 1
+                else:
+                    # AxisPoolPermutation
+                    translated_input_axes[param_name] = [axes[axis_node.id] for axis_node in param]
+                    if not operation.operation.params[param_name].consuming:
+                        amount_non_consumed_axes += len(translated_input_axes[param_name])
+
+            try:
+                return_value = operation.operation.function_call(
+                    schedule_context.environment,
+                    translated_input_axes | operation.parameters
+                )
+            except Exception as e:
+                print(f"Exception during operation {operation.operation.name} ({i_operation}): ", e)
+                return None
+
+            if return_value is not None:
+                corresponding_axes = operation.output_axes[-len(return_value):]
+                for i in range(len(return_value)):
+                    axes[corresponding_axes[i].id] = return_value[i]
+
+            return self.finish_schedule(schedule_context)

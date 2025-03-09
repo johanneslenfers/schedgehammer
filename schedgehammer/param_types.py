@@ -18,6 +18,9 @@ class Param(ABC, Generic[T]):
     def choose_random(self, current_value: Optional[T] = None) -> T:
         raise NotImplementedError
 
+    def translate_for_evaluation(self, value: T) -> T:
+        return value
+
 
 @dataclass
 class SwitchParam(Param[bool]):
