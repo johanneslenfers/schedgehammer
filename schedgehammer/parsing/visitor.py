@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from schedgehammer.parsing.antlr.ConstraintParser import ConstraintParser
 from schedgehammer.parsing.antlr.ConstraintVisitor import ConstraintVisitor
 
+
 @dataclass
 class EvaluatingVisitor(ConstraintVisitor):
     variables: dict
@@ -24,7 +25,9 @@ class EvaluatingVisitor(ConstraintVisitor):
     def visitFunctionExpr(self, ctx: ConstraintParser.FunctionExprContext):
         assert ctx.getChildCount() == 3 or (ctx.getChildCount() - 4) % 2 == 0
         argument_length = math.ceil((ctx.getChildCount() - 3) / 2)
-        arguments = [self.visit(ctx.getChild(i * 2 + 2)) for i in range(argument_length)]
+        arguments = [
+            self.visit(ctx.getChild(i * 2 + 2)) for i in range(argument_length)
+        ]
         return self.functions[ctx.getChild(0).getText()](*arguments)
 
     # Visit a parse tree produced by ConstraintParser#BitwiseOrExpr.
@@ -169,7 +172,6 @@ class EvaluatingVisitor(ConstraintVisitor):
 
 
 class GeneratingVisitor(ConstraintVisitor):
-
     # Visit a parse tree produced by ConstraintParser#BitwiseAndExpr.
     def visitBitwiseAndExpr(self, ctx: ConstraintParser.BitwiseAndExprContext):
         assert ctx.getChildCount() == 3
@@ -184,7 +186,9 @@ class GeneratingVisitor(ConstraintVisitor):
     def visitFunctionExpr(self, ctx: ConstraintParser.FunctionExprContext):
         assert ctx.getChildCount() == 3 or (ctx.getChildCount() - 4) % 2 == 0
         argument_length = math.ceil((ctx.getChildCount() - 3) / 2)
-        arguments = [self.visit(ctx.getChild(i * 2 + 2)) for i in range(argument_length)]
+        arguments = [
+            self.visit(ctx.getChild(i * 2 + 2)) for i in range(argument_length)
+        ]
         arguments_str = ", ".join(arguments)
         function_name = ctx.getChild(0).getText()
         assert isinstance(function_name, str)

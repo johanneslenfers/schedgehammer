@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from numbers import Number
 from typing import Callable, Generic, Optional, TypeVar
+import itertools
 
 ParamValue = bool | float | int | str | list[int]
 T = TypeVar("T", bound=ParamValue)
@@ -18,23 +19,31 @@ class Param(ABC, Generic[T]):
     def choose_random(self, current_value: Optional[T] = None) -> T:
         raise NotImplementedError
 
+    @abstractmethod
+    def get_value_range(self) -> list[T]:
+        raise NotImplementedError
+
     def translate_for_evaluation(self, value: T) -> T:
         return value
 
 
 @dataclass
 class SwitchParam(Param[bool]):
-    def choose_random(self, current_value: Optional[bool] = None):
+    def choose_random(self, current_value: Optional[bool] = None) -> bool:
         if random.random() < 0.5:
             return True
         else:
             return False
+
+    def get_value_range(self) -> bool:
+        return [True, False]
 
 
 @dataclass
 class RealParam(Param[float]):
     min_val: float
     max_val: float
+    range_precision: float = 1e-3
 
     def choose_random(self, current_value: Optional[float] = None) -> float:
         if current_value is None:
@@ -44,6 +53,14 @@ class RealParam(Param[float]):
             return clamp(
                 random.normalvariate(current_value, stddev), self.min_val, self.max_val
             )
+
+    def get_value_range(self) -> list[float]:
+        return [
+            self.min_val + n * self.range_precision
+            for n in range(
+                int((self.max_val - self.min_val) * (1 / self.range_precision))
+            )
+        ]
 
 
 @dataclass
@@ -61,6 +78,9 @@ class IntegerParam(Param[int]):
                 self.min_val,
                 self.max_val,
             )
+
+    def get_value_range(self) -> list[int]:
+        return list(range(self.min_val, self.max_val))
 
 
 @dataclass
@@ -80,6 +100,10 @@ class ExpIntParam(Param[int]):
                 self.max_exp,
             )
             return self.base**exp
+
+    def get_value_range(self) -> int:
+        # TODO: gucken, wo die parameter nicht als int angelegt werden
+        return [self.base**i for i in range(int(self.min_exp), int(self.max_exp))]
 
 
 OrdinalParamType = int | str
@@ -102,6 +126,9 @@ class OrdinalParam(Param[OrdinalParamType]):
             )
             return self.values[idx]
 
+    def get_value_range(self) -> list[OrdinalParamType]:
+        return self.values.copy()
+
 
 @dataclass
 class CategoricalParam(Param[str]):
@@ -109,6 +136,9 @@ class CategoricalParam(Param[str]):
 
     def choose_random(self, _: Optional[str] = None) -> str:
         return random.choice(self.values)
+
+    def get_value_range(self) -> list[str]:
+        return self.values.copy()
 
 
 @dataclass
@@ -138,6 +168,9 @@ class PermutationParam(Param[list[int]]):
                 )
 
             return current_value
+
+    def get_value_range(self) -> list[int]:
+        return [list(p) for p in itertools.permutations(self.values)]
 
 
 TYPE_MAP = {
