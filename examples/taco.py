@@ -1,11 +1,14 @@
 import taco_bindings
 
-s = taco_bindings.ScheduleEnv("mini")
+# Using the more computationally intensive "spmv" example
+s = taco_bindings.ScheduleEnv("spmv")
+print(s)
 
 print(s.statement())
 
-# s.split("i", "a", "b", 2)
-s.reorder(["j", "i"])
+# Removed the reordering as it's not compatible with the spmv structure
+s.split("j", "a", "b", 8)
+# s.reorder(["j", "i"])
 # s.fuse("i", "j", "f")
 
 print(s.statement())
@@ -13,4 +16,4 @@ print(s.statement())
 time = s.execute()
 print(f"took {time}ms")
 
-print(s.code())
+# print(s.code())
