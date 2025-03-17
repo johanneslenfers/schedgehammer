@@ -1,8 +1,8 @@
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, TypeVar, Optional
 from numbers import Number
+from typing import Callable, Generic, Optional, TypeVar
 import itertools
 
 ParamValue = bool | float | int | str | list[int]
@@ -19,9 +19,11 @@ class Param(ABC, Generic[T]):
     def choose_random(self, current_value: Optional[T] = None) -> T:
         raise NotImplementedError
 
-    @abstractmethod
     def get_value_range(self) -> list[T]:
         raise NotImplementedError
+
+    def translate_for_evaluation(self, value: T) -> T:
+        return value
 
 
 @dataclass

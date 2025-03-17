@@ -14,7 +14,7 @@ ParameterConfiguration = Dict[str, ParamValue]
 
 class Budget(ABC):
     @abstractmethod
-    def in_budget(self, tuner) -> bool:
+    def in_budget(self, tuner, reserve=0) -> bool:
         pass
 
 
@@ -22,16 +22,16 @@ class Budget(ABC):
 class EvalBudget(Budget):
     max_evaluations: int
 
-    def in_budget(self, tuner) -> bool:
-        return tuner.current_evaluation <= self.max_evaluations
+    def in_budget(self, tuner, reserve=0) -> bool:
+        return tuner.current_evaluation <= self.max_evaluations * (1 - reserve)
 
 
 @dataclass
 class TimeBudget(Budget):
     seconds: float
 
-    def in_budget(self, tuner) -> bool:
-        return time.perf_counter() - tuner.start_time <= self.seconds
+    def in_budget(self, tuner, reserve=0) -> bool:
+        return time.perf_counter() - tuner.start_time <= self.seconds * (1 - reserve)
 
 
 class TuningAttempt:
@@ -62,8 +62,10 @@ class TuningAttempt:
         if not self.in_budget():
             raise Exception("Budget spent!")
 
+        translated_config = self.translate_config_for_evaluation(config)
+
         start = time.perf_counter()
-        score = self.problem.cost_function(config)
+        score = self.problem.cost_function(translated_config)
         self.evaluation_cumulative_duration += time.perf_counter() - start
 
         self.record_of_evaluations.append(
@@ -79,8 +81,13 @@ class TuningAttempt:
         if score < self.best_score:
             self.best_score = score
             self.best_config = config
-
         return score
+
+    def translate_config_for_evaluation(self, config: ParameterConfiguration) -> ParameterConfiguration:
+        new_config = {}
+        for param_name, param in self.problem.params.items():
+            new_config[param_name] = param.translate_for_evaluation(config[param_name])
+        return new_config
 
     def fulfills_all_constraints(self, config: ParameterConfiguration) -> bool:
         for constraint in self.problem.constraints:
@@ -98,8 +105,8 @@ class TuningAttempt:
             self.evaluation_cumulative_duration,
         )
 
-    def in_budget(self) -> bool:
-        return all([b.in_budget(self) for b in self.budgets])
+    def in_budget(self, reserve=0) -> bool:
+        return all([b.in_budget(self, reserve) for b in self.budgets])
 
     def log_state(self):
         print("\033[H\033[J", end="")
@@ -109,7 +116,6 @@ class TuningAttempt:
 
 
 class Tuner(ABC):
-
     def tune(self, problem: Problem, budgets: list[Budget]) -> TuningResult:
         attempt = TuningAttempt(problem, budgets)
         self.do_tuning(attempt)
