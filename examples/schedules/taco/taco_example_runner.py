@@ -1,20 +1,9 @@
-import os
-import sys
-import time
-
-import numpy as np
-from matplotlib import pyplot as plt
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 import taco_bindings
-from examples.taco_api_operations import FUSE, REORDER, SPLIT
 from schedgehammer.problem import Problem
-from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
 from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget, Tuner
-
+from taco_api_operations import FUSE, SPLIT, REORDER
 
 # Parameters for the example
 def create_schedule() -> ScheduleContext:

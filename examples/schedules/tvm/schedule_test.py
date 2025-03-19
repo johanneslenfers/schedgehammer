@@ -1,8 +1,3 @@
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 import numpy
 import numpy as np
 import tvm
@@ -10,7 +5,7 @@ from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
-from examples.tvm_api import REORDER, SPLIT, TILE
+from tvm_api import REORDER, SPLIT, TILE
 from schedgehammer.problem import Problem
 from schedgehammer.schedules.schedule_type import ScheduleParam, ScheduleContext
 from schedgehammer.tuner import EvalBudget

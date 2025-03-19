@@ -1,10 +1,6 @@
-import os
 import random
-import sys
-import uuid
 from typing import Callable
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from schedgehammer.param_types import ExpIntParam
 from schedgehammer.schedules.schedule_type import (
     Axis,
@@ -15,7 +11,6 @@ from schedgehammer.schedules.schedule_type import (
     Operation,
     ReturnTypeAxesList,
     ReturnTypeNone,
-    Tensor,
 )
 
 

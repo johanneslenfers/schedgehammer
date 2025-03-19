@@ -1,15 +1,10 @@
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 import numpy
 import numpy as np
 import tvm
 from matplotlib import pyplot as plt
 from tvm import te
 
-from examples.tvm_api import REORDER, SPLIT, TILE
+from tvm_api import REORDER, SPLIT, TILE
 from schedgehammer.schedules.schedule_type import ScheduleParam, ScheduleContext
 
 M = 512
