@@ -32,14 +32,18 @@ class AxisPoolPermutationParam:
 
 MethodParamType = AxisParam | AxisPoolPermutationParam | Param
 
+
 @dataclass
 class ReturnTypeAxesList:
     axes_amount: int
 
+
 class ReturnTypeNone:
     pass
 
+
 MethodReturnType = ReturnTypeAxesList | ReturnTypeNone
+
 
 @dataclass
 class Operation(Generic[Axis, Tensor]):
@@ -51,7 +55,9 @@ class Operation(Generic[Axis, Tensor]):
     return_type: MethodReturnType
 
     def preconditions_met(self, schedule_tree: SchedulePlanningTree):
-        axes_needed = len(list(filter(lambda p: isinstance(p, AxisParam), self.params.values())))
+        axes_needed = len(
+            list(filter(lambda p: isinstance(p, AxisParam), self.params.values()))
+        )
         axes_got = len(schedule_tree.unconsumed_axes)
         return axes_got >= axes_needed
 
@@ -65,7 +71,9 @@ class Operation(Generic[Axis, Tensor]):
                 operation_node.parameters[param_name] = param_type.choose_random()
             elif isinstance(param_type, AxisPoolPermutationParam):
                 # AxisPoolPermutationParam uses all available axes.
-                operation_node.input_axes[param_name] = schedule_tree.unconsumed_axes.copy()
+                operation_node.input_axes[param_name] = (
+                    schedule_tree.unconsumed_axes.copy()
+                )
                 random.shuffle(operation_node.input_axes[param_name])
 
                 if param_type.consuming:
@@ -113,6 +121,7 @@ class SchedulePlanningTree:
     - Each AxisNode can only be processed once. If the operation is not consuming,
     create a new axisNode with the same id outgoing from the operation.
     """
+
     operations: list[OperationNode]
     unconsumed_axes: list[AxisNode] = field(default_factory=lambda: [])
     next_axis_id: int = 0
@@ -237,7 +246,7 @@ class AxisNode(Node):
         return [self.processed_in] if self.processed_in else []
 
     def __str__(self):
-        return self.id
+        return str(self.id)
 
 
 @dataclass
@@ -253,6 +262,7 @@ class OperationNode(Node):
     def __str__(self):
         return f"[{self.operation.name}|{'-'.join([str(axis) if isinstance(axis, AxisNode) else 'all' for axis in self.input_axes.values()])}|{'-'.join([str(axis) for axis in self.output_axes])}]"
 
+
 @dataclass
 class ScheduleContext:
     axes: list[Any]
@@ -266,20 +276,24 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
     max_length: int
     api_description: list[Operation]
     initial_axes_amount: int
+    first_operation_blacklist: list[Operation] = field(default_factory=list)
     last_generated_tree: SchedulePlanningTree | None = None
 
-    def __init__(self,
-                 create_schedule: Callable[[], ScheduleContext],
-                 finish_schedule: Callable[[ScheduleContext], CompiledSchedule],
-                 min_length: int,
-                 max_length: int,
-                 api_description: list[Operation],
-                 ) -> None:
+    def __init__(
+        self,
+        create_schedule: Callable[[], ScheduleContext],
+        finish_schedule: Callable[[ScheduleContext], CompiledSchedule],
+        min_length: int,
+        max_length: int,
+        api_description: list[Operation],
+        first_operation_blacklist: list[Operation] = None,
+    ) -> None:
         self.create_schedule = create_schedule
         self.finish_schedule = finish_schedule
         self.min_length = min_length
         self.max_length = max_length
         self.api_description = api_description
+        self.first_operation_blacklist = first_operation_blacklist or []
         # Execute create_schedule once in order to get amount of initial axes.
         self.initial_axes_amount = len(self.create_schedule().axes)
 
@@ -289,15 +303,29 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
             desired_length = random.randint(self.min_length, self.max_length)
 
             while len(schedule_tree.operations) < desired_length:
-                method_candidates = list(filter(
-                    lambda method: method.preconditions_met(schedule_tree),
-                    self.api_description
-                ))
+                method_candidates = list(
+                    filter(
+                        lambda method: method.preconditions_met(schedule_tree),
+                        self.api_description,
+                    )
+                )
+
+                # Apply blacklist constraint for first operation
+                if (
+                    len(schedule_tree.operations) == 0
+                    and self.first_operation_blacklist
+                ):
+                    method_candidates = list(
+                        filter(
+                            lambda method: method not in self.first_operation_blacklist,
+                            method_candidates,
+                        )
+                    )
+
                 if len(method_candidates) == 0:
                     break
                 chosen_method: Operation = random.choice(method_candidates)
                 chosen_method.apply_random_on_tree(schedule_tree)
-
 
             else:  # If inner while exited normally
                 return schedule_tree
@@ -312,6 +340,8 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
                 print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
 
     def translate_for_evaluation(self, schedule_tree: SchedulePlanningTree) -> T:
+        print("Translate for evaluation:")
+        print(schedule_tree)
         schedule_context = self.create_schedule()
         # Dict to keep track of axis.
         axes = {i: axis for i, axis in enumerate(schedule_context.axes)}
@@ -328,21 +358,28 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
                         amount_non_consumed_axes += 1
                 else:
                     # AxisPoolPermutation
-                    translated_input_axes[param_name] = [axes[axis_node.id] for axis_node in param]
+                    translated_input_axes[param_name] = [
+                        axes[axis_node.id] for axis_node in param
+                    ]
                     if not operation.operation.params[param_name].consuming:
-                        amount_non_consumed_axes += len(translated_input_axes[param_name])
+                        amount_non_consumed_axes += len(
+                            translated_input_axes[param_name]
+                        )
 
             try:
                 return_value = operation.operation.function_call(
                     schedule_context.environment,
-                    translated_input_axes | operation.parameters
+                    translated_input_axes | operation.parameters,
                 )
             except Exception as e:
-                print(f"Exception during operation {operation.operation.name} ({i_operation}): ", e)
+                print(
+                    f"Exception during operation {operation.operation.name} ({i_operation}): ",
+                    e,
+                )
                 return None
 
             if return_value is not None:
-                corresponding_axes = operation.output_axes[-len(return_value):]
+                corresponding_axes = operation.output_axes[-len(return_value) :]
                 for i in range(len(return_value)):
                     axes[corresponding_axes[i].id] = return_value[i]
 

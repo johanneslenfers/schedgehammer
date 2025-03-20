@@ -1,13 +1,14 @@
 import math
+import multiprocessing as mp
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict
 
+from schedgehammer.constraint import Solver
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
 from schedgehammer.result import EvaluationResult, TuningResult
-from schedgehammer.constraint import Solver
 
 ParameterConfiguration = Dict[str, ParamValue]
 
@@ -34,6 +35,26 @@ class TimeBudget(Budget):
         return time.perf_counter() - tuner.start_time <= self.seconds * (1 - reserve)
 
 
+def _evaluation_process(problem, config, result_queue):
+    """Worker function to translate and evaluate a configuration in a separate process."""
+    try:
+        # Translate the configuration in the worker process
+        translated_config = {}
+        for param_name, param in problem.params.items():
+            translated_config[param_name] = param.translate_for_evaluation(
+                config[param_name]
+            )
+
+        # Evaluate the translated configuration
+        start_time = time.perf_counter()
+        score = problem.cost_function(translated_config)
+        evaluation_time = time.perf_counter() - start_time
+        result_queue.put({"success": True, "score": score, "time": evaluation_time})
+    except Exception as e:
+        evaluation_time = time.perf_counter() - start_time
+        result_queue.put({"success": False, "error": str(e), "time": evaluation_time})
+
+
 class TuningAttempt:
     problem: Problem
     solver: Solver
@@ -49,6 +70,7 @@ class TuningAttempt:
     best_config: ParameterConfiguration = None
 
     evaluation_cumulative_duration: float = 0
+    timeout_per_evaluation: float = 20.0
 
     def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem
@@ -62,11 +84,41 @@ class TuningAttempt:
         if not self.in_budget():
             raise Exception("Budget spent!")
 
-        translated_config = self.translate_config_for_evaluation(config)
+        result_queue = mp.Queue()
+        process = mp.Process(
+            target=_evaluation_process, args=(self.problem, config, result_queue)
+        )
 
-        start = time.perf_counter()
-        score = self.problem.cost_function(translated_config)
-        self.evaluation_cumulative_duration += time.perf_counter() - start
+        try:
+            process.start()
+            process.join(timeout=self.timeout_per_evaluation)
+        except KeyboardInterrupt:
+            process.terminate()
+            exit()
+
+        if process.is_alive():
+            process.terminate()  # Terminate the process
+            process.join()  # Clean up the terminated process
+            print("Evaluation timed out")
+            score = float("inf")  # Assign worst score for timeout
+            evaluation_time = (
+                self.timeout_per_evaluation
+            )  # Use the timeout value as the evaluation time
+        else:
+            # Get the result from the queue
+            result = result_queue.get()
+
+            if not result["success"]:
+                # Handle evaluation failure
+                score = float(
+                    "inf"
+                )  # Or another appropriate value for failed evaluations
+            else:
+                score = result["score"]
+
+            evaluation_time = result["time"]
+
+        self.evaluation_cumulative_duration += evaluation_time
 
         self.record_of_evaluations.append(
             EvaluationResult(
@@ -82,12 +134,6 @@ class TuningAttempt:
             self.best_score = score
             self.best_config = config
         return score
-
-    def translate_config_for_evaluation(self, config: ParameterConfiguration) -> ParameterConfiguration:
-        new_config = {}
-        for param_name, param in self.problem.params.items():
-            new_config[param_name] = param.translate_for_evaluation(config[param_name])
-        return new_config
 
     def fulfills_all_constraints(self, config: ParameterConfiguration) -> bool:
         for constraint in self.problem.constraints:

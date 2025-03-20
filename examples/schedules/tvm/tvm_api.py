@@ -1,8 +1,5 @@
-import os
-import sys
 from typing import Callable
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from schedgehammer.param_types import ExpIntParam
 from schedgehammer.schedules.schedule_type import AxisParam, AxisPoolPermutationParam, Operation, ReturnTypeAxesList, \
     ReturnTypeNone, MethodReturnType, MethodParamType, Axis, Tensor
