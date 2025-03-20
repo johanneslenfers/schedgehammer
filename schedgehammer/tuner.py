@@ -89,8 +89,13 @@ class TuningAttempt:
             target=_evaluation_process, args=(self.problem, config, result_queue)
         )
 
-        process.start()
-        process.join(timeout=self.timeout_per_evaluation)
+        try:
+            process.start()
+            process.join(timeout=self.timeout_per_evaluation)
+        except KeyboardInterrupt:
+            process.terminate()
+            exit()
+
         if process.is_alive():
             process.terminate()  # Terminate the process
             process.join()  # Clean up the terminated process
