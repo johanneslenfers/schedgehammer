@@ -1,5 +1,4 @@
 import numpy
-import numpy as np
 import tvm
 from tvm import te
 
@@ -42,7 +41,7 @@ def cost_function(config):
     c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
 
     func: tvm.module.Module = config["schedule"]
-    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1, number=5)
     result = evaluator(a, b, c).mean
 
     return result
