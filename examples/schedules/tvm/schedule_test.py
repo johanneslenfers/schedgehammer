@@ -4,25 +4,25 @@ import tvm
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
-
 from tvm_api import REORDER, SPLIT, TILE
+
 from schedgehammer.problem import Problem
-from schedgehammer.schedules.schedule_type import ScheduleParam, ScheduleContext
-from schedgehammer.tuner import EvalBudget
 from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
 from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
+from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
+from schedgehammer.tuner import EvalBudget, Tuner
 
 M = 512
 K = 512
 N = 512
 
 DTYPE = "float32"
-ITERATIONS = 100  # If >63 limit ansors iterations else it will crash
-RUNS = 3
+ITERATIONS = 200  # If >63 limit ansors iterations else it will crash
+RUNS = 19
 
-results_genetic = []
-results_random = []
 ansor_results = []
+genetic_results = []
+random_results = []
 
 
 def plot_results_from_several_runs(results, label) -> range:
@@ -64,64 +64,39 @@ def create_schedule() -> ScheduleContext:
     return ScheduleContext(
         [C.op.axis[0], C.op.axis[1], C.op.reduce_axis[0]],
         {
-            'schedule': s,
-            'tensor': C,
-            'alltensors': [A, B, C],
-        }
+            "schedule": s,
+            "tensor": C,
+            "alltensors": [A, B, C],
+        },
     )
 
 
-def create_cost_function(result_list):
-    def cost_function(config):
-        dev = tvm.device("llvm", 0)
+def cost_function(config):
+    dev = tvm.device("llvm", 0)
 
-        # Random generated tensor for testing
-        a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
-        b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
-        c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
+    # Random generated tensor for testing
+    a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
+    b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
+    c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
 
-        func: tvm.module.Module = config["schedule"]
-        evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
+    func: tvm.module.Module = config["schedule"]
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
 
-        result = evaluator(a, b, c).mean
-        correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-        c_numpyfied = c.asnumpy()
-        assert np.allclose(
-            c_numpyfied, correct_answer
-        )  # test if same shape, elements have close enough values
+    result = evaluator(a, b, c).mean
+    correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
+    c_numpyfied = c.asnumpy()
+    assert np.allclose(
+        c_numpyfied, correct_answer
+    )  # test if same shape, elements have close enough values
 
-        # with concurrent.futures.ThreadPoolExecutor() as executor:  # noqa: F821
-        #     future = executor.submit(evaluator, a, b, c)
-        #     try:
-        #         result = future.result(timeout=6).mean  # 3 second timeout
-        #         # Check if calculation is correct
-        #         correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
-        #         c_numpyfied = c.asnumpy()
-        #         assert np.allclose(
-        #             c_numpyfied, correct_answer
-        #         )  # test if same shape, elements have close enough values
-        #     except concurrent.futures.TimeoutError:
-        #         print("\033[93mEvaluation timed out\033[0m")
-        #         result = float("inf")
-        #     except AssertionError:
-        #         print("\033[93mInvalid Result Matrix\033[0m")
-        #         result = float("inf")
-        #     # TODO: Leaving the executor often hangs. Find out why
-
-        if not result_list[-1] or result < result_list[-1][-1]:
-            result_list[-1].append(result)
-        else:
-            result_list[-1].append(result_list[-1][-1])
-        print("COST:", result)
-        return result
-
-    return cost_function
+    print("COST:", result)
+    return result
 
 
 def finish_schedule(ctx: ScheduleContext):
     return tvm.build(
-        ctx.environment['schedule'],
-        ctx.environment['alltensors'],
+        ctx.environment["schedule"],
+        ctx.environment["alltensors"],
         name="anything",
     )
 
@@ -179,9 +154,7 @@ def get_ansor_results():
 def get_baseline() -> float:
     # Find time of unchanged schedule
     env = create_schedule().environment
-    func = tvm.build(
-        env['schedule'], env['alltensors'], name="anything"
-    )
+    func = tvm.build(env["schedule"], env["alltensors"], name="anything")
     dev = tvm.device("llvm", 0)
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
     b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
@@ -194,17 +167,15 @@ def get_baseline() -> float:
 def get_blocking_baseline(bn=32, kfactor=4) -> float:
     env = create_schedule().environment
     # Apply blocking as described in https://tvm.apache.org/docs/v0.13.0/how_to/optimize_operators/opt_gemm.html
-    C = env['tensor']
-    s = env['schedule']
+    C = env["tensor"]
+    s = env["schedule"]
     mo, no, mi, ni = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
     (kaxis,) = s[C].op.reduce_axis
     ko, ki = s[C].split(kaxis, factor=kfactor)
 
     s[C].reorder(mo, no, ko, ki, mi, ni)
 
-    func = tvm.build(
-        s, env['alltensors'], name="anything"
-    )
+    func = tvm.build(s, env["alltensors"], name="anything")
     dev = tvm.device("llvm", 0)
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
     b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
@@ -216,30 +187,30 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
 
 if __name__ == "__main__":
     for result_list, tuner_class in [
-        (results_genetic, ScheduleGeneticTuner),
-        (results_random, ScheduleRandomSearch),
+        (genetic_results, ScheduleGeneticTuner),
+        (random_results, ScheduleRandomSearch),
     ]:
-        tuner = tuner_class()
+        tuner: Tuner = tuner_class()
         for run in range(RUNS):
             print("\033[95mRUN:", run, "\033[0m")
-            result_list.append([])
             param = ScheduleParam(
                 create_schedule,
                 finish_schedule,
                 2,
-                10,
+                60,
                 api_description=[TILE, SPLIT, REORDER],
             )
-            tuner.tune(
+            result = tuner.tune(
                 problem=Problem(
                     "schedge",
                     {"schedule": param},
-                    create_cost_function(result_list),
+                    cost_function,
                     [],
-                    init_solver=False
+                    init_solver=False,
                 ),
                 budgets=[EvalBudget(ITERATIONS)],
             )
+            result_list.append(result.best_score_list())
 
     # baseline_score = get_baseline()
     # print("Baseline:", baseline_score)
@@ -254,8 +225,8 @@ if __name__ == "__main__":
     #             best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
     #         )
     plt.figure()
-    plot_results_from_several_runs(results_genetic, "Genetic Search")
-    plot_results_from_several_runs(results_random, "Random Search Old")
+    plot_results_from_several_runs(genetic_results, "Genetic Search")
+    plot_results_from_several_runs(random_results, "Random Search Old")
     # xs = plot_results_from_several_runs(ansor_results, "Ansor")
     # plt.plot(xs, [baseline_score] * len(xs), label="Baseline")
     # plt.plot(

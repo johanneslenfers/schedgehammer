@@ -4,13 +4,13 @@ import tvm.topi as topi
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
-
 from tvm_api import REORDER, SPLIT, TILE
+
 from schedgehammer.problem import Problem
-from schedgehammer.schedules.schedule_type import ScheduleParam, ScheduleContext
-from schedgehammer.tuner import EvalBudget
 from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
 from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
+from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
+from schedgehammer.tuner import EvalBudget
 
 N, H, W, C_in = 1, 64, 64, 3  # Batch size, height, width, input channels
 K_h, K_w, C_out = 3, 3, 128  # Kernel height, kernel width, output channels
@@ -78,49 +78,48 @@ def create_schedule() -> ScheduleContext:
     # # Parallelize computation
     # s[Output].bind(ho, block_x)
     # s[Output].bind(wi, thread_x)
-    
+
     return ScheduleContext(
-        [Output.op.axis[0], Output.op.axis[1], Output.op.axis[2], Output.op.axis[3],
-         Output.op.reduce_axis[0], Output.op.reduce_axis[1], Output.op.reduce_axis[2]],
+        [
+            Output.op.axis[0],
+            Output.op.axis[1],
+            Output.op.axis[2],
+            Output.op.axis[3],
+            Output.op.reduce_axis[0],
+            Output.op.reduce_axis[1],
+            Output.op.reduce_axis[2],
+        ],
         {
-            'schedule': s,
-            'tensor': Output,
-            'alltensors': [Input, Kernel, Output],
-        }
+            "schedule": s,
+            "tensor": Output,
+            "alltensors": [Input, Kernel, Output],
+        },
     )
 
 
-def create_cost_function(result_list):
-    def cost_function(config):
-        input_data = np.random.randn(N, H, W, C_in).astype(DTYPE)
-        kernel_data = np.random.randn(K_h, K_w, C_in, C_out).astype(DTYPE)
+def cost_function(config):
+    input_data = np.random.randn(N, H, W, C_in).astype(DTYPE)
+    kernel_data = np.random.randn(K_h, K_w, C_in, C_out).astype(DTYPE)
 
-        # Allocate TVM NDArray
-        dev = tvm.device("llvm", 0)
-        input_tvm = tvm.nd.array(input_data, dev)
-        kernel_tvm = tvm.nd.array(kernel_data, dev)
-        output_tvm = tvm.nd.array(np.zeros((N, H, W, C_out), dtype=DTYPE), dev)
+    # Allocate TVM NDArray
+    dev = tvm.device("llvm", 0)
+    input_tvm = tvm.nd.array(input_data, dev)
+    kernel_tvm = tvm.nd.array(kernel_data, dev)
+    output_tvm = tvm.nd.array(np.zeros((N, H, W, C_out), dtype=DTYPE), dev)
 
-        # Run the optimized convolution
-        func: tvm.module.Module = config["schedule"]
-        evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
-        result = evaluator(input_tvm, kernel_tvm, output_tvm).mean
-        print("Optimized Conv2D Execution Complete!")
+    # Run the optimized convolution
+    func: tvm.module.Module = config["schedule"]
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
+    result = evaluator(input_tvm, kernel_tvm, output_tvm).mean
 
-        if not result_list[-1] or result < result_list[-1][-1]:
-            result_list[-1].append(result)
-        else:
-            result_list[-1].append(result_list[-1][-1])
-        print("COST:", result)
-        return result
-
-    return cost_function
+    print("COST:", result)
+    return result
 
 
 def finish_schedule(ctx: ScheduleContext):
     return tvm.build(
-        ctx.environment['schedule'],
-        ctx.environment['alltensors'],
+        ctx.environment["schedule"],
+        ctx.environment["alltensors"],
         target="llvm",
         name="anything",
     )
@@ -210,7 +209,6 @@ if __name__ == "__main__":
         tuner = tuner_class()
         for run in range(RUNS):
             print("\033[95mRUN:", run, "\033[0m")
-            result_list.append([])
             param = ScheduleParam(
                 create_schedule,
                 finish_schedule,
@@ -218,17 +216,17 @@ if __name__ == "__main__":
                 13,
                 api_description=[TILE, SPLIT, REORDER],
             )
-            tuner.tune(
+            result = tuner.tune(
                 problem=Problem(
                     "schedge",
                     {"schedule": param},
-                    create_cost_function(result_list),
+                    cost_function,
                     [],
-                    init_solver=False
+                    init_solver=False,
                 ),
                 budgets=[EvalBudget(ITERATIONS)],
             )
-
+            result_list.append(result.best_score_list())
     # baseline_score = get_baseline()
     # print("Baseline:", baseline_score)
     plt.figure()
