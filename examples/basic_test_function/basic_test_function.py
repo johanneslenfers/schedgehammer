@@ -11,50 +11,57 @@ from schedgehammer.param_types import (
     OrdinalParam,
     PermutationParam,
     RealParam,
-    SwitchParam,
+    SwitchParam, ParamValue,
 )
 from schedgehammer.problem import Problem
 from schedgehammer.tuner import EvalBudget
 
+class BasicProblem(Problem):
+
+    def __init__(self):
+        super().__init__(
+            "magical example",
+            {
+                "magic": SwitchParam(),
+                "mana": RealParam(0, 10),
+                "level": IntegerParam(1, 100),
+                "power": OrdinalParam([1, 2, 4, 8, 16]),
+                "creature": CategoricalParam(
+                    [
+                        "dwarf",
+                        "halfling",
+                        "gold_golem",
+                        "mage",
+                        "naga",
+                        "genie",
+                        "dragon_golem",
+                        "titan",
+                    ]
+                ),
+                "order": PermutationParam([1, 2, 3, 4, 5]),
+            },
+            constraints=[],
+            init_solver=True
+        )
+
+    def cost_function(self, config: dict[str, ParamValue]) -> float:
+        return -cost(config)
+
 
 def main():
-    problem = Problem(
-        "magical example",
-        {
-            "magic": SwitchParam(),
-            "mana": RealParam(0, 10),
-            "level": IntegerParam(1, 100),
-            "power": OrdinalParam([1, 2, 4, 8, 16]),
-            "creature": CategoricalParam(
-                [
-                    "dwarf",
-                    "halfling",
-                    "gold_golem",
-                    "mage",
-                    "naga",
-                    "genie",
-                    "dragon_golem",
-                    "titan",
-                ]
-            ),
-            "order": PermutationParam([1, 2, 3, 4, 5]),
-        },
-        cost_function=lambda x: -cost(x),
-        constraints=[],
-    )  # Make minimization problem.
-
-    be = EvalBudget(10000)
+    be = EvalBudget(1000)
     # bt = TimeBudget(1.5)
     benchmark(
-        problem,
+        BasicProblem,
         [be],
         {
             "GeneticTuner": GeneticTuner(local_mutation=True),
             "RandomSearch": RandomSearch(),
         },
         output_path="results/",
-        repetitions=1,
+        repetitions=2,
         export_raw_data=True,
+        parallel=4,
     )
 
 
