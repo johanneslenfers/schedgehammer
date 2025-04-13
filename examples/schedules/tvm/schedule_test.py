@@ -4,6 +4,8 @@ import tvm
 from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
+
+from schedgehammer.benchmark import benchmark
 from tvm_api import REORDER, SPLIT, TILE
 
 from schedgehammer.problem import Problem
@@ -12,9 +14,9 @@ from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget, Tuner
 
-M = 512
-K = 512
-N = 512
+M = 1024
+K = 1024
+N = 1024
 
 DTYPE = "float32"
 ITERATIONS = 200  # If >63 limit ansors iterations else it will crash
@@ -80,9 +82,9 @@ def cost_function(config):
     c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
 
     func: tvm.module.Module = config["schedule"]
-    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=3, number=3)
+    result = evaluator(a, b, c).median
 
-    result = evaluator(a, b, c).mean
     correct_answer = numpy.dot(a.asnumpy(), b.asnumpy())
     c_numpyfied = c.asnumpy()
     assert np.allclose(
@@ -143,8 +145,8 @@ def get_ansor_results():
         b_tvm = tvm.nd.array(b_np)
         c_tvm = tvm.nd.array(c_np)
 
-        evaluator = func.time_evaluator(func.entry_name, dev, number=5)
-        exec_time = evaluator(a_tvm, b_tvm, c_tvm).mean
+        evaluator = func.time_evaluator(func.entry_name, dev, repeat=3, number=3)
+        exec_time = evaluator(a_tvm, b_tvm, c_tvm).median
         print("Ansor execution time: %.3f ms" % (exec_time * 1e3))
         ansor_results[-1][-1] = (
             exec_time  # Make sure the real execution time is not higher than calculated by ansor
@@ -159,8 +161,8 @@ def get_baseline() -> float:
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
     b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
     c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
-    evaluator = func.time_evaluator(func.entry_name, dev, repeat=3)
-    result = evaluator(a, b, c).mean
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=3, number=3)
+    result = evaluator(a, b, c).median
     return result
 
 
@@ -180,8 +182,8 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
     b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
     c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
-    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
-    result = evaluator(a, b, c).mean
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=3, number=3)
+    result = evaluator(a, b, c).median
     return result
 
 
@@ -191,26 +193,32 @@ if __name__ == "__main__":
         (random_results, ScheduleRandomSearch),
     ]:
         tuner: Tuner = tuner_class()
-        for run in range(RUNS):
-            print("\033[95mRUN:", run, "\033[0m")
-            param = ScheduleParam(
-                create_schedule,
-                finish_schedule,
-                2,
-                60,
-                api_description=[TILE, SPLIT, REORDER],
-            )
-            result = tuner.tune(
-                problem=Problem(
-                    "schedge",
-                    {"schedule": param},
-                    cost_function,
-                    [],
-                    init_solver=False,
-                ),
-                budgets=[EvalBudget(ITERATIONS)],
-            )
-            result_list.append(result.best_score_list())
+
+        param = ScheduleParam(
+            create_schedule,
+            finish_schedule,
+            2,
+            60,
+            api_description=[TILE, SPLIT, REORDER],
+        )
+
+        benchmark(
+            Problem(
+                "schedge",
+                {"schedule": param},
+                cost_function,
+                [],
+                init_solver=False,
+            ),
+            [EvalBudget(ITERATIONS)],
+            {
+                "genetic_tuner": ScheduleGeneticTuner(),
+                "random_tuner": ScheduleRandomSearch(),
+            },
+            f"data/mm_schedule",
+            RUNS,
+            True
+        )
 
     # baseline_score = get_baseline()
     # print("Baseline:", baseline_score)
@@ -224,20 +232,3 @@ if __name__ == "__main__":
     #         best_block_schedule = min(
     #             best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
     #         )
-    plt.figure()
-    plot_results_from_several_runs(genetic_results, "Genetic Search")
-    plot_results_from_several_runs(random_results, "Random Search Old")
-    # xs = plot_results_from_several_runs(ansor_results, "Ansor")
-    # plt.plot(xs, [baseline_score] * len(xs), label="Baseline")
-    # plt.plot(
-    #     xs,
-    #     [best_block_schedule] * len(xs),
-    #     label="Optimized Block Schedule",
-    # )
-    plt.xlabel("function evaluations")
-    plt.ylabel("cost")
-    plt.yscale("log")
-    plt.gca().yaxis.set_major_formatter(plt.ScalarFormatter())
-    plt.gca().yaxis.get_major_formatter().set_scientific(False)
-    plt.legend()
-    plt.show()
