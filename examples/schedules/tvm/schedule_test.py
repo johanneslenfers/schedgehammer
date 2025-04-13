@@ -6,6 +6,7 @@ from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
 from schedgehammer.benchmark import benchmark
+from schedgehammer.param_types import ParamValue
 from tvm_api import REORDER, SPLIT, TILE
 
 from schedgehammer.problem import Problem
@@ -186,39 +187,42 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
     result = evaluator(a, b, c).median
     return result
 
+class MMProblem(Problem):
 
-if __name__ == "__main__":
-    for result_list, tuner_class in [
-        (genetic_results, ScheduleGeneticTuner),
-        (random_results, ScheduleRandomSearch),
-    ]:
-        tuner: Tuner = tuner_class()
-
+    def __init__(self):
         param = ScheduleParam(
             create_schedule,
             finish_schedule,
             2,
-            60,
+            10,
             api_description=[TILE, SPLIT, REORDER],
         )
 
-        benchmark(
-            Problem(
-                "schedge",
-                {"schedule": param},
-                cost_function,
-                [],
-                init_solver=False,
-            ),
-            [EvalBudget(ITERATIONS)],
-            {
-                "genetic_tuner": ScheduleGeneticTuner(),
-                "random_tuner": ScheduleRandomSearch(),
-            },
-            f"data/mm_schedule",
-            RUNS,
-            True
+        super().__init__(
+            "schedge",
+            {"schedule": param},
+            [],
+            init_solver=False,
         )
+
+    def cost_function(self, config: dict[str, ParamValue]) -> float:
+        return cost_function(config)
+
+
+
+if __name__ == "__main__":
+
+    benchmark(
+        MMProblem,
+        [EvalBudget(ITERATIONS)],
+        {
+            "genetic_tuner": ScheduleGeneticTuner(),
+            "random_tuner": ScheduleRandomSearch(),
+        },
+        f"data/mm_schedule",
+        RUNS,
+        True
+    )
 
     # baseline_score = get_baseline()
     # print("Baseline:", baseline_score)
