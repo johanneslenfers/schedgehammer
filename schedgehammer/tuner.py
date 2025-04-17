@@ -70,7 +70,7 @@ class TuningAttempt:
     best_config: ParameterConfiguration = None
 
     evaluation_cumulative_duration: float = 0
-    timeout_per_evaluation: float = 20.0
+    timeout_per_evaluation: float = 180.0
 
     def __init__(self, problem: Problem, budgets: list[Budget]):
         self.problem = problem

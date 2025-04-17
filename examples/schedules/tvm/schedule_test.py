@@ -21,7 +21,7 @@ N = 1024
 
 DTYPE = "float32"
 ITERATIONS = 200  # If >63 limit ansors iterations else it will crash
-RUNS = 19
+RUNS = 64
 
 ansor_results = []
 genetic_results = []
@@ -75,7 +75,7 @@ def create_schedule() -> ScheduleContext:
 
 
 def cost_function(config):
-    dev = tvm.device("llvm", 0)
+    dev = tvm.device("llvm --opt-level=0", 0)
 
     # Random generated tensor for testing
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
@@ -100,6 +100,7 @@ def finish_schedule(ctx: ScheduleContext):
     return tvm.build(
         ctx.environment["schedule"],
         ctx.environment["alltensors"],
+        "llvm --opt-level=0",
         name="anything",
     )
 
@@ -114,7 +115,7 @@ def get_ansor_results():
         return [A, B, C]
 
     # Create the search task
-    target = tvm.target.Target("llvm")
+    target = tvm.target.Target("llvm --opt-level=0")
     for _ in range(RUNS):
         ansor_results.append([])
         task = auto_scheduler.SearchTask(func=create_task_func, target=target)
@@ -135,7 +136,7 @@ def get_ansor_results():
         sch, args = task.apply_best("matmul.json")
         func = tvm.build(sch, args, target)
 
-        dev = tvm.device("llvm", 0)
+        dev = tvm.device("llvm --opt-level=0", 0)
         # Create sample input arrays
         a_np = np.random.uniform(size=(M, K)).astype(DTYPE)
         b_np = np.random.uniform(size=(K, N)).astype(DTYPE)
@@ -157,8 +158,8 @@ def get_ansor_results():
 def get_baseline() -> float:
     # Find time of unchanged schedule
     env = create_schedule().environment
-    func = tvm.build(env["schedule"], env["alltensors"], name="anything")
-    dev = tvm.device("llvm", 0)
+    func = tvm.build(env["schedule"], env["alltensors"], "llvm --opt-level=0", name="anything")
+    dev = tvm.device("llvm --opt-level=0", 0)
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
     b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
     c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
@@ -178,8 +179,8 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
 
     s[C].reorder(mo, no, ko, ki, mi, ni)
 
-    func = tvm.build(s, env["alltensors"], name="anything")
-    dev = tvm.device("llvm", 0)
+    func = tvm.build(s, env["alltensors"], "llvm --opt-level=0", name="anything")
+    dev = tvm.device("llvm --opt-level=0", 0)
     a = tvm.nd.array(numpy.random.rand(M, K).astype(DTYPE), dev)
     b = tvm.nd.array(numpy.random.rand(K, N).astype(DTYPE), dev)
     c = tvm.nd.array(numpy.zeros((M, N), dtype=DTYPE), dev)
@@ -221,18 +222,20 @@ if __name__ == "__main__":
         },
         f"data/mm_schedule",
         RUNS,
-        True
+        64,
     )
 
-    # baseline_score = get_baseline()
-    # print("Baseline:", baseline_score)
     # get_ansor_results()
-    # best_block_schedule = float("inf")
-    # for bn_exp in range(1, 10):
-    #     for kfactor_exp in range(1, 10):
-    #         print(
-    #             "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp
-    #         )
-    #         best_block_schedule = min(
-    #             best_block_schedule, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
-    #         )
+
+    baseline_score = get_baseline()
+    print("Baseline:", baseline_score)
+
+    best_block_schedule = float("inf")
+    for bn_exp in range(1, 10):
+        for kfactor_exp in range(1, 10):
+            v = get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
+            print(
+                "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp, v
+            )
+            best_block_schedule = min(best_block_schedule, v)
+    print("Best block schedule:", best_block_schedule)
