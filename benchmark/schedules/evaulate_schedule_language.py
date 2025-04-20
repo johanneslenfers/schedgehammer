@@ -64,7 +64,7 @@ def evaluate_problem_for_schedule_language(
     for run in range(runs):
         print(f"\033[95mRUN: {run}\033[0m")
         for tuner_name, tuner_class in TUNERS.items():
-            for min_, max_ in [(1, 50), (1, 10)]:
+            for min_, max_ in [(1, 10)]:
                 key = f"{tuner_name} min={min_} max={max_}"
                 tuner = tuner_class()
                 param = ScheduleParam(

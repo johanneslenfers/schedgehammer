@@ -1,3 +1,9 @@
+# Only needed since this is in the same repo as schedgehammer.
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+##############################################################
 import copy
 
 import numpy
@@ -15,9 +21,9 @@ from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget, Tuner
 
-M = 128
-K = 128
-N = 128
+M = 512
+K = 512
+N = 512
 
 DTYPE = "float32"
 
@@ -41,7 +47,7 @@ def create_mm_schedule() -> ScheduleContext:
     )
 
 
-def cost_function(config):
+def mm_cost_function(config):
     dev = tvm.device("llvm", 0)
 
     # Random generated tensor for testing
@@ -62,16 +68,7 @@ def cost_function(config):
     return result
 
 
-def finish_schedule(ctx: ScheduleContext):
-    return tvm.build(
-        ctx.environment["schedule"],
-        ctx.environment["alltensors"],
-        name="anything",
-    )
-
-
 def get_ansor_mm_results(iterations, runs):
-    runs = 1  # DELETE ME
     ansor_results = []
 
     @auto_scheduler.register_workload
@@ -132,7 +129,7 @@ def get_blocking_baseline(bn=32, kfactor=4) -> float:
     return result
 
 
-def get_best_blocking_baseline() -> float:
+def get_best_mm_blocking_baseline() -> float:
     best_blocking_baseline = float("inf")
     for bn_exp in range(1, 10):
         for kfactor_exp in range(1, 10):
@@ -140,25 +137,3 @@ def get_best_blocking_baseline() -> float:
                 best_blocking_baseline, get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
             )
     return best_blocking_baseline
-
-
-def evaluate_mm_schedule():
-    evaluate_problem_for_schedule_language(
-        "mm",
-        "tvm",
-        create_mm_schedule,
-        cost_function,
-        finish_schedule,
-        [TILE, SPLIT, REORDER],
-        rival_tuners={
-            "Ansor": get_ansor_mm_results,
-        },
-        other_results={
-            "Optimized Block Schedule": get_best_blocking_baseline(),
-        },
-        runs=7,
-        iterations=700,
-    )
-
-
-evaluate_mm_schedule()
