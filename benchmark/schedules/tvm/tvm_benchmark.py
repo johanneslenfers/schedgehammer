@@ -22,9 +22,14 @@ from mm import (
     get_best_mm_blocking_baseline,
     mm_cost_function,
 )
+from mttkrp import (
+    create_mttkrp_schedule,
+    get_ansor_mttkrp_results,
+    mttkrp_cost_function,
+)
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
-from tvm_api import FUSE, REORDER, SPLIT, TILE
+from tvm_api import REORDER, SPLIT, TILE
 
 from schedgehammer.problem import Problem
 from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
@@ -32,8 +37,8 @@ from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget, Tuner
 
-DEFAULT_RUNS = 1
-DEFAULT_ITERATIONS = 100
+DEFAULT_RUNS = 9
+DEFAULT_ITERATIONS = 200
 
 
 def finish_schedule(ctx: ScheduleContext):
@@ -51,7 +56,7 @@ def evaluate_mm_schedule(runs=DEFAULT_RUNS, iterations=DEFAULT_ITERATIONS):
         create_mm_schedule,
         mm_cost_function,
         finish_schedule,
-        [TILE, SPLIT, REORDER, FUSE],
+        [TILE, SPLIT, REORDER],
         rival_tuners={
             "Ansor": get_ansor_mm_results,
         },
@@ -60,6 +65,22 @@ def evaluate_mm_schedule(runs=DEFAULT_RUNS, iterations=DEFAULT_ITERATIONS):
         },
         runs=runs,
         iterations=iterations,
+    )
+
+
+def evaluate_mttkrp_schedule(runs=DEFAULT_RUNS, iterations=DEFAULT_ITERATIONS):
+    evaluate_problem_for_schedule_language(
+        "Matricized tensor times Khatri-Rao product",
+        "tvm",
+        create_mttkrp_schedule,
+        mttkrp_cost_function,
+        finish_schedule,
+        [TILE, SPLIT, REORDER],
+        runs=runs,
+        iterations=iterations,
+        rival_tuners={
+            # "Ansor": get_ansor_mttkrp_results,
+        },
     )
 
 
@@ -79,4 +100,11 @@ def evaluate_conv_2d_schedule(runs=DEFAULT_RUNS, iterations=DEFAULT_ITERATIONS):
     )
 
 
-evaluate_mm_schedule()
+def full_benchmark():
+    evaluate_mm_schedule()
+    evaluate_conv_2d_schedule()
+    evaluate_mttkrp_schedule()
+
+
+if __name__ == "__main__":
+    full_benchmark()
