@@ -14,6 +14,11 @@ from conv_2d import (
     create_2d_conv_schedule,
     get_ansor_conv_2d_results,
 )
+from dense_layer import (
+    create_dense_layer_schedule,
+    dense_layer_cost_function,
+    get_ansor_dense_layer_results,
+)
 from evaulate_schedule_language import evaluate_problem_for_schedule_language
 from matplotlib import pyplot as plt
 from mm import (
@@ -37,7 +42,7 @@ from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget, Tuner
 
-DEFAULT_RUNS = 9
+DEFAULT_RUNS = 7
 DEFAULT_ITERATIONS = 200
 
 
@@ -79,7 +84,7 @@ def evaluate_mttkrp_schedule(runs=DEFAULT_RUNS, iterations=DEFAULT_ITERATIONS):
         runs=runs,
         iterations=iterations,
         rival_tuners={
-            # "Ansor": get_ansor_mttkrp_results,
+            "Ansor": get_ansor_mttkrp_results,
         },
     )
 
@@ -96,6 +101,22 @@ def evaluate_conv_2d_schedule(runs=DEFAULT_RUNS, iterations=DEFAULT_ITERATIONS):
         iterations=iterations,
         rival_tuners={
             "Ansor": get_ansor_conv_2d_results,
+        },
+    )
+
+
+def evaluate_dense_layer_schedule(runs=DEFAULT_RUNS, iterations=DEFAULT_ITERATIONS):
+    evaluate_problem_for_schedule_language(
+        "Dense Layer",
+        "tvm",
+        create_dense_layer_schedule,
+        dense_layer_cost_function,
+        finish_schedule,
+        [TILE, SPLIT, REORDER],
+        runs=runs,
+        iterations=iterations,
+        rival_tuners={
+            "Ansor": get_ansor_dense_layer_results,
         },
     )
 
