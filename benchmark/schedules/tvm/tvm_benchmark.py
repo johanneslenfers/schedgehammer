@@ -4,10 +4,6 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 ##############################################################
-import copy
-
-import numpy
-import numpy as np
 import tvm
 from conv_2d import (
     conv_2d_cost_function,
