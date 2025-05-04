@@ -102,7 +102,7 @@ void mttkrp(ScheduleEnvInternal *se) {
     Tensor<double> A({B.getDimension(0), 25}, rm);
 
     // Define the MTTKRP computation using index notation.
-    IndexVar i, j, k, l;
+    IndexVar i("i"), j("j"), k("k"), l("l");
     A(i, j) = B(i, k, l) * D(l, j) * C(k, j);
 
     se->stmt = A.getAssignment().concretize();
@@ -150,7 +150,7 @@ void sddmm(ScheduleEnvInternal *se) {
     Tensor<double> A(B.getDimensions(), dcsr);
 
     // Define the SDDMM computation using index notation.
-    IndexVar i, j, k;
+    IndexVar i("i"), j("j"), k("k");
     A(i, j) = B(i, j) * C(i, k) * D(k, j);
 
     se->stmt = A.getAssignment().concretize();
