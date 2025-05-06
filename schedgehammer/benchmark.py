@@ -148,12 +148,9 @@ def benchmark(
     repetitions: int = 1,
     export_raw_data: bool = False,
     parallel: int = 1,
-) -> ArchivedResult:
-    report = {}
+):
 
     Path(output_path).mkdir(parents=True, exist_ok=True)
-
-    all_results: dict[str, list[list[EvaluationResult]]] = {}
 
     tasks = list(itertools.product(
         [(problem_class, budget, export_raw_data, output_path)],
