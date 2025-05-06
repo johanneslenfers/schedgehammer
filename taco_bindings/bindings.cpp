@@ -27,7 +27,7 @@ void spmv(ScheduleEnvInternal *se) {
     // store it as a compressed sparse row matrix. Matrices correspond to
     // order-2 tensors in taco. The matrix in this example can be downloaded
     // from: https://www.cise.ufl.edu/research/sparse/MM/Boeing/pwtk.tar.gz
-    Tensor<double> A = read("pwtk/pwtk.mtx", csr);
+    Tensor<double> A = read("test_data/pwtk.mtx", csr);
 
     // Generate a random dense vector and store it in the dense vector format.
     // Vectors correspond to order-1 tensors in taco.
@@ -60,6 +60,101 @@ void spmv(ScheduleEnvInternal *se) {
 
     se->stmt = y.getAssignment().concretize();
     se->output_tensor = y;
+}
+
+void mttkrp(ScheduleEnvInternal *se) {
+    std::default_random_engine gen(0);
+    std::uniform_real_distribution<double> unif(0.0, 1.0);
+    // Predeclare the storage formats that the inputs and output will be stored
+    // as. To define a format, you must specify whether each dimension is dense
+    // or sparse and (optionally) the order in which dimensions should be
+    // stored. The formats declared below correspond to compressed sparse fiber
+    // (csf) and row-major dense (rm).
+    Format csf({Sparse, Sparse, Sparse});
+    Format rm({Dense, Dense});
+
+    // Load a sparse order-3 tensor from file (stored in the FROSTT format) and
+    // store it as a compressed sparse fiber tensor. The tensor in this example
+    // can be download from: http://frostt.io/tensors/nell-2/
+    Tensor<double> B = read("test_data/nell-2.tns", csf);
+    // Generate a random dense matrix and store it in row-major (dense) format.
+    // Matrices correspond to order-2 tensors in taco.
+    Tensor<double> C({B.getDimension(1), 25}, rm);
+    for (int i = 0; i < C.getDimension(0); ++i) {
+        for (int j = 0; j < C.getDimension(1); ++j) {
+            C.insert({i, j}, unif(gen));
+        }
+    }
+    C.pack();
+
+    // Generate another random dense matrix and store it in row-major format.
+    Tensor<double> D({B.getDimension(2), 25}, rm);
+    for (int i = 0; i < D.getDimension(0); ++i) {
+        for (int j = 0; j < D.getDimension(1); ++j) {
+            D.insert({i, j}, unif(gen));
+        }
+    }
+    D.pack();
+
+    // Declare the output matrix to be a dense matrix with 25 columns and the
+    // same number of rows as the number of slices along the first dimension of
+    // input tensor B, to be also stored as a row-major dense matrix.
+    Tensor<double> A({B.getDimension(0), 25}, rm);
+
+    // Define the MTTKRP computation using index notation.
+    IndexVar i("i"), j("j"), k("k"), l("l");
+    A(i, j) = B(i, k, l) * D(l, j) * C(k, j);
+
+    se->stmt = A.getAssignment().concretize();
+    se->output_tensor = A;
+}
+
+void sddmm(ScheduleEnvInternal *se) {
+    std::default_random_engine gen(0);
+    std::uniform_real_distribution<double> unif(0.0, 1.0);
+    // Predeclare the storage formats that the inputs and output will be stored
+    // as. To define a format, you must specify whether each dimension is dense
+    // or sparse and (optionally) the order in which dimensions should be
+    // stored. The formats declared below correspond to doubly compressed sparse
+    // row (dcsr), row-major dense (rm), and column-major dense (dm).
+    Format dcsr({Sparse, Sparse});
+    Format rm({Dense, Dense});
+    Format cm({Dense, Dense}, {1, 0});
+
+    // Load a sparse matrix from file (stored in the Matrix Market format) and
+    // store it as a doubly compressed sparse row matrix. Matrices correspond to
+    // order-2 tensors in taco. The matrix in this example can be download from:
+    // https://www.cise.ufl.edu/research/sparse/MM/Williams/webbase-1M.tar.gz
+    Tensor<double> B = read("test_data/webbase-1M.mtx", dcsr);
+    // Generate a random dense matrix and store it in row-major (dense) format.
+    Tensor<double> C({B.getDimension(0), 1000}, rm);
+    for (int i = 0; i < C.getDimension(0); ++i) {
+        for (int j = 0; j < C.getDimension(1); ++j) {
+            C.insert({i, j}, unif(gen));
+        }
+    }
+    C.pack();
+
+    // Generate another random dense matrix and store it in column-major format.
+    Tensor<double> D({1000, B.getDimension(1)}, cm);
+    for (int i = 0; i < D.getDimension(0); ++i) {
+        for (int j = 0; j < D.getDimension(1); ++j) {
+            D.insert({i, j}, unif(gen));
+        }
+    }
+    D.pack();
+
+    // Declare the output matrix to be a sparse matrix with the same dimensions
+    // as input matrix B, to be also stored as a doubly compressed sparse row
+    // matrix.
+    Tensor<double> A(B.getDimensions(), dcsr);
+
+    // Define the SDDMM computation using index notation.
+    IndexVar i("i"), j("j"), k("k");
+    A(i, j) = B(i, j) * C(i, k) * D(k, j);
+
+    se->stmt = A.getAssignment().concretize();
+    se->output_tensor = A;
 }
 
 void mini(ScheduleEnvInternal *se) {
@@ -99,11 +194,14 @@ static int ScheduleEnv_init(ScheduleEnvInternal *self, PyObject *args) {
     std::string ps{program};
     if (ps == "spmv") {
         spmv(self);
+    } else if (ps == "mttkrp") {
+        mttkrp(self);
+    } else if (ps == "sddmm") {
+        sddmm(self);
     } else if (ps == "mini") {
         mini(self);
     } else {
-        PyErr_SetString(PyExc_NotImplementedError,
-                        "currently only spmv, or mini is supported!");
+        PyErr_SetString(PyExc_NotImplementedError, "unsupported benchmark!");
         return NULL;
     }
 
