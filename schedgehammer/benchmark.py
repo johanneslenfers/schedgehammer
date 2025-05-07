@@ -128,16 +128,15 @@ class ArchivedResult:
 
 
 def run_task(obj):
-    ((problem_class, budget, export_raw_data, output_path), (tuner_name, tuner), i) = obj
+    ((problem_class, budget, export_raw_data, output_path, timeout_secs), (tuner_name, tuner), i) = obj
     print(f"begin {tuner_name}-{i}")
     problem = problem_class()
-    result = tuner.tune(problem, budget)
+    result = tuner.tune(problem, budget, timeout_secs)
     if export_raw_data:
         result.generate_csv(
             os.path.join(output_path, f"runs/{tuner_name}-{i}.csv")
         )
     print(f"end {tuner_name}-{i}")
-    return result
 
 
 def benchmark(
@@ -148,12 +147,13 @@ def benchmark(
     repetitions: int = 1,
     export_raw_data: bool = False,
     parallel: int = 1,
+    timeout_secs: float = 90,
 ):
 
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     tasks = list(itertools.product(
-        [(problem_class, budget, export_raw_data, output_path)],
+        [(problem_class, budget, export_raw_data, output_path, timeout_secs)],
         tuner_list.items(),
         range(repetitions)
     ))

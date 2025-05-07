@@ -62,6 +62,7 @@ class TuningAttempt:
     record_of_evaluations: list[EvaluationResult]
     start_time: float
     current_evaluation: int = 0
+    timeout_secs: float
 
     last_improvement_evaluation: int = 0
     last_improvement_time: float
@@ -70,12 +71,12 @@ class TuningAttempt:
     best_config: ParameterConfiguration = None
 
     evaluation_cumulative_duration: float = 0
-    timeout_per_evaluation: float = 180.0
 
-    def __init__(self, problem: Problem, budgets: list[Budget]):
+    def __init__(self, problem: Problem, budgets: list[Budget], timeout_secs: float):
         self.problem = problem
         self.solver = self.problem.get_solver()
         self.budgets = budgets
+        self.timeout_secs = timeout_secs
         self.record_of_evaluations = []
         self.start_time = time.perf_counter()
         self.last_improvement_time = time.perf_counter()
@@ -91,7 +92,7 @@ class TuningAttempt:
 
         try:
             process.start()
-            process.join(timeout=self.timeout_per_evaluation)
+            process.join(timeout=self.timeout_secs)
         except KeyboardInterrupt:
             process.terminate()
             exit()
@@ -102,7 +103,7 @@ class TuningAttempt:
             print("Evaluation timed out")
             score = float("inf")  # Assign worst score for timeout
             evaluation_time = (
-                self.timeout_per_evaluation
+                self.timeout_secs
             )  # Use the timeout value as the evaluation time
         else:
             # Get the result from the queue
@@ -162,8 +163,8 @@ class TuningAttempt:
 
 
 class Tuner(ABC):
-    def tune(self, problem: Problem, budgets: list[Budget]) -> TuningResult:
-        attempt = TuningAttempt(problem, budgets)
+    def tune(self, problem: Problem, budgets: list[Budget], timeout_secs: float = 90) -> TuningResult:
+        attempt = TuningAttempt(problem, budgets, timeout_secs)
         self.do_tuning(attempt)
         return attempt.create_result()
 
