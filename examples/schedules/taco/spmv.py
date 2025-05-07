@@ -78,7 +78,7 @@ if __name__ == "__main__":
             "GeneticTuner": ScheduleGeneticTuner(),
         },
         output_path="results/taco/spmv",
-        repetitions=64,
+        repetitions=9,
         export_raw_data=True,
-        parallel=64
+        parallel=4,
     )
