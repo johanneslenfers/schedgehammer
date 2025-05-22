@@ -340,8 +340,8 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
                 print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
 
     def translate_for_evaluation(self, schedule_tree: SchedulePlanningTree) -> T:
-        print("Translate for evaluation:")
-        print(schedule_tree)
+        # print("Translate for evaluation:")
+        # print(schedule_tree)
         schedule_context = self.create_schedule()
         # Dict to keep track of axis.
         axes = {i: axis for i, axis in enumerate(schedule_context.axes)}

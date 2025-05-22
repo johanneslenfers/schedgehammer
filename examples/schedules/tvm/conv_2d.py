@@ -1,13 +1,19 @@
 import numpy
 import tvm
-from scipy.signal import convolve2d
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
-from schedgehammer.schedules.schedule_type import ScheduleContext
+from tvm_api import TILE, SPLIT, REORDER
+from schedgehammer.benchmark import benchmark
+from schedgehammer.param_types import ParamValue
+from schedgehammer.problem import Problem
+from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
+from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
+from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
+from schedgehammer.tuner import EvalBudget
 
-KERNEL_WIDTH = 5
-INPUT_WIDTH = 1024
+KERNEL_WIDTH = 9
+INPUT_WIDTH = 2048
 
 DTYPE = "float32"
 
@@ -129,26 +135,50 @@ def conv_2d_cost_function(config):
     )
     output = tvm.nd.array(numpy.zeros((INPUT_WIDTH, INPUT_WIDTH), dtype=DTYPE), dev)
     func: tvm.module.Module = config["schedule"]
-    evaluator = func.time_evaluator(func.entry_name, dev, repeat=1)
-    result = evaluator(input, kernel, output).mean
-
-    # input_np = input.asnumpy()
-    # kernel_np = kernel.asnumpy()
-    # output_np = output.asnumpy()
-
-    # reference_output = numpy.zeros_like(input_np)
-    # pad_width = (KERNEL_WIDTH - 1) // 2
-
-    # for x in range(INPUT_WIDTH):
-    #     for y in range(INPUT_WIDTH):
-    #         acc = 0.0
-    #         for rx in range(KERNEL_WIDTH):
-    #             for ry in range(KERNEL_WIDTH):
-    #                 in_x = x - pad_width + rx
-    #                 in_y = y - pad_width + ry
-    #                 if 0 <= in_x < INPUT_WIDTH and 0 <= in_y < INPUT_WIDTH:
-    #                     acc += input_np[in_x, in_y] * kernel_np[rx, ry]
-    #         reference_output[x, y] = acc
-    # assert numpy.allclose(output_np, reference_output, rtol=1e-5, atol=1e-5)
-    print("Cost:", result)
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=3)
+    result = evaluator(input, kernel, output).median
     return result
+
+def finish_schedule(ctx: ScheduleContext):
+    return tvm.build(
+        ctx.environment["schedule"],
+        ctx.environment["alltensors"],
+        "llvm",
+    )
+
+
+class Conv2DProblem(Problem):
+
+    def __init__(self):
+        param = ScheduleParam(
+            create_2d_conv_schedule,
+            finish_schedule,
+            2,
+            10,
+            api_description=[TILE, SPLIT, REORDER],
+        )
+
+        super().__init__(
+            "schedge",
+            {"schedule": param},
+            [],
+            init_solver=False,
+        )
+
+    def cost_function(self, config: dict[str, ParamValue]) -> float:
+        return conv_2d_cost_function(config)
+
+if __name__ == "__main__":
+
+    benchmark(
+        Conv2DProblem,
+        [EvalBudget(100)],
+        {
+            "genetic_tuner": ScheduleGeneticTuner(),
+            "random_tuner": ScheduleRandomSearch(),
+        },
+        f"results/tvm/conv2d",
+        15,
+        True,
+        16,
+    )

@@ -1,25 +1,9 @@
-# Only needed since this is in the same repo as schedgehammer.
-import os
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-##############################################################
-import copy
-
 import numpy
 import numpy as np
 import tvm
-from evaulate_schedule_language import evaluate_problem_for_schedule_language
-from matplotlib import pyplot as plt
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
-from tvm_api import REORDER, SPLIT, TILE
-
-from schedgehammer.problem import Problem
-from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
-from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
-from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
-from schedgehammer.tuner import EvalBudget, Tuner
+from schedgehammer.schedules.schedule_type import ScheduleContext
 
 M = 512
 K = 512
@@ -97,7 +81,6 @@ def get_ansor_mm_results(iterations, runs):
         tuning_options = auto_scheduler.TuningOptions(
             num_measure_trials=min(iterations, 63),
             measure_callbacks=[
-                auto_scheduler.RecordToFile("matmul.json"),
                 StoreResultCallback(),
             ],
             verbose=2,

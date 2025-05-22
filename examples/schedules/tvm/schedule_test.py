@@ -21,7 +21,6 @@ N = 1024
 
 DTYPE = "float32"
 ITERATIONS = 200  # If >63 limit ansors iterations else it will crash
-RUNS = 64
 
 ansor_results = []
 genetic_results = []
@@ -220,9 +219,10 @@ if __name__ == "__main__":
             "genetic_tuner": ScheduleGeneticTuner(),
             "random_tuner": ScheduleRandomSearch(),
         },
-        f"data/mm_schedule",
-        RUNS,
-        64,
+        f"results/tvm/mm",
+        15,
+        True,
+        16,
     )
 
     # get_ansor_results()
