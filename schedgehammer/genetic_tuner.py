@@ -39,9 +39,9 @@ class GeneticTuner(Tuner):
                         attempt.solver.decision_queue.append((k, v2))
 
                     if random.random() < self.mutation_prob:
-                        if self.local_mutation:
+                        if self.local_mutation and attempt.problem.params[k].can_mutate():
                             attempt.solver.decision_queue.append(
-                                (k, attempt.problem.params[k].choose_random(v1))
+                                (k, attempt.problem.params[k].mutate(v1))
                             )
                         else:
                             attempt.solver.decision_queue.append(

@@ -130,7 +130,10 @@ class ArchivedResult:
 def run_task(obj):
     ((problem_class, budget, export_raw_data, output_path, timeout_secs), (tuner_name, tuner), i) = obj
     print(f"begin {tuner_name}-{i}")
-    problem = problem_class()
+    if isinstance(problem_class, Problem):
+        problem = problem_class
+    else:
+        problem = problem_class()
     result = tuner.tune(problem, budget, timeout_secs)
     if export_raw_data:
         result.generate_csv(
@@ -158,5 +161,9 @@ def benchmark(
         range(repetitions)
     ))
 
-    with NestablePool(parallel) as pool:
-        pool.map(run_task, tasks)
+    if parallel <= 1:
+        for task in tasks:
+            run_task(task)
+    else:
+        with NestablePool(parallel) as pool:
+            pool.map(run_task, tasks)

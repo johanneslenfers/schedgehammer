@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import random
 import sys
@@ -123,6 +124,7 @@ class SchedulePlanningTree:
     """
 
     operations: list[OperationNode]
+    initial_axes_amount: int
     unconsumed_axes: list[AxisNode] = field(default_factory=lambda: [])
     next_axis_id: int = 0
 
@@ -131,6 +133,46 @@ class SchedulePlanningTree:
         self.initial_axes_amount = initial_axes_amount
         self.unconsumed_axes = [AxisNode(i) for i in range(initial_axes_amount)]
         self.next_axis_id = self.initial_axes_amount
+
+    def __copy__(self):
+        new_tree = SchedulePlanningTree(self.initial_axes_amount)
+        new_tree.next_axis_id = self.next_axis_id
+        new_axes = {i: AxisNode(i) for i in range(self.initial_axes_amount)}
+        for operation_node in self.operations:
+            input_axes = {}
+            for name, axis_node_or_list in operation_node.input_axes.items():
+
+                if isinstance(axis_node_or_list, AxisNode):
+                    input_axes[name] = new_axes[axis_node_or_list.id]
+                    del new_axes[axis_node_or_list.id]
+                else:
+                    input_axes[name] = [new_axes[axis_node.id] for axis_node in axis_node_or_list]
+                    for axis_node in axis_node_or_list:
+                        del new_axes[axis_node.id]
+
+            output_axes = []
+            for axis_node in operation_node.output_axes:
+                new_axis_node = AxisNode(axis_node.id)
+                output_axes.append(new_axis_node)
+                new_axes[new_axis_node.id] = new_axis_node
+
+            new_operation_node = OperationNode(
+                operation_node.operation,
+                operation_node.parameters.copy(),
+                input_axes,
+                output_axes,
+            )
+
+            for new_axis_node_or_list in input_axes.values():
+                if isinstance(new_axis_node_or_list, AxisNode):
+                    new_axis_node_or_list.processed_in = new_operation_node
+                else:
+                    for new_axis_node in new_axis_node_or_list:
+                        new_axis_node.processed_in = new_operation_node
+
+            new_tree.operations.append(new_operation_node)
+        new_tree.unconsumed_axes = list(new_axes.values())
+        return new_tree
 
     def visualize(self):
         """
@@ -269,7 +311,7 @@ class ScheduleContext:
     environment: Any
 
 
-class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
+class ScheduleParam(Param[SchedulePlanningTree], Generic[CompiledSchedule]):
     create_schedule: Callable[[], ScheduleContext]
     finish_schedule: Callable[[ScheduleContext], CompiledSchedule]
     min_length: int
@@ -277,7 +319,6 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
     api_description: list[Operation]
     initial_axes_amount: int
     first_operation_blacklist: list[Operation] = field(default_factory=list)
-    last_generated_tree: SchedulePlanningTree | None = None
 
     def __init__(
         self,
@@ -333,11 +374,18 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
     def choose_random(self, current_value=None):
         while True:
             try:
-                self.last_generated_tree = self.create_random_schedule()
-                return self.last_generated_tree
+                return self.create_random_schedule()
             except Exception as e:
                 traceback.print_exc()
                 print(f"\033[93mFailed to create random schedule bc {e}\033[0m")
+
+    def can_mutate(self) -> bool:
+        return True
+
+    def mutate(self, value: SchedulePlanningTree) -> SchedulePlanningTree:
+        new_value = copy.copy(value)
+        new_value.randomly_tweak_primitive_params()
+        return new_value
 
     def translate_for_evaluation(self, schedule_tree: SchedulePlanningTree) -> T:
         # print("Translate for evaluation:")
@@ -383,4 +431,4 @@ class ScheduleParam(Param[Any], Generic[CompiledSchedule]):
                 for i in range(len(return_value)):
                     axes[corresponding_axes[i].id] = return_value[i]
 
-            return self.finish_schedule(schedule_context)
+        return self.finish_schedule(schedule_context)

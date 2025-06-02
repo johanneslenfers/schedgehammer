@@ -1,10 +1,10 @@
 import taco_bindings
 from schedgehammer.benchmark import benchmark
 from schedgehammer.problem import Problem
-from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
-from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
+from schedgehammer.genetic_tuner_2 import GeneticTuner2
+from schedgehammer.random_search_2 import RandomSearch2
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
-from schedgehammer.tuner import EvalBudget, Tuner
+from schedgehammer.tuner import EvalBudget
 from taco_api_operations import FUSE, SPLIT, REORDER
 
 # Parameters for the example
@@ -74,8 +74,8 @@ if __name__ == "__main__":
         TacoProblem,
         [EvalBudget(100)],
         {
-            "RandomSearch": ScheduleRandomSearch(),
-            "GeneticTuner": ScheduleGeneticTuner(),
+            "RandomSearch": RandomSearch2(),
+            "GeneticTuner": GeneticTuner2(),
         },
         output_path="results/taco/gemm",
         repetitions=9,

@@ -7,8 +7,8 @@ from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 from tvm_api import REORDER, SPLIT, TILE
 
 from schedgehammer.problem import Problem
-from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
-from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
+from schedgehammer.genetic_tuner_2 import GeneticTuner2
+from schedgehammer.random_search_2 import RandomSearch2
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget
 
@@ -203,8 +203,8 @@ def get_ansor_results():
 if __name__ == "__main__":
     # get_ansor_results()
     for result_list, tuner_class in [
-        (results_genetic, ScheduleGeneticTuner),
-        (results_random, ScheduleRandomSearch),
+        (results_genetic, GeneticTuner2),
+        (results_random, RandomSearch2),
     ]:
         tuner = tuner_class()
         for run in range(RUNS):

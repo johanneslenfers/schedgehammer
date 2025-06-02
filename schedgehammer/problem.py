@@ -21,7 +21,7 @@ class Problem(ABC):
         self.name = name
         self.params = params
         self.constraints = [
-            ConstraintExpression(s).to_constraint() for s in constraints
+            ConstraintExpression(s) for s in constraints
         ]
         self.init_solver = init_solver
 

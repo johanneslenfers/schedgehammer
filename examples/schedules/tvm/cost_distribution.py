@@ -87,8 +87,7 @@ if __name__ == "__main__":
     )
     best_cost = float("inf")
     for schedule_num in range(200):
-        schedule = param.choose_random()
-        tree = param.last_generated_tree
+        tree = param.choose_random()
         costs_per_schedule.append([len(tree.operations)])
         for variant_num in range(1):
             print(variant_num, "/", schedule_num)

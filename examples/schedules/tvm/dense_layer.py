@@ -7,8 +7,8 @@ from tvm_api import TILE, SPLIT, REORDER
 from schedgehammer.benchmark import benchmark
 from schedgehammer.param_types import ParamValue
 from schedgehammer.problem import Problem
-from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
-from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
+from schedgehammer.genetic_tuner_2 import GeneticTuner2
+from schedgehammer.random_search_2 import RandomSearch2
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget
 
@@ -141,8 +141,8 @@ if __name__ == "__main__":
         DenseLayerProblem,
         [EvalBudget(100)],
         {
-            "genetic_tuner": ScheduleGeneticTuner(),
-            "random_tuner": ScheduleRandomSearch(),
+            "genetic_tuner": GeneticTuner2(),
+            "random_tuner": RandomSearch2(),
         },
         f"results/tvm/dense_layer",
         15,

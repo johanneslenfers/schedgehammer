@@ -4,7 +4,7 @@ from schedgehammer.tuner import Tuner, TuningAttempt
 
 
 @dataclass
-class ScheduleRandomSearch(Tuner):
+class RandomSearch2(Tuner):
     def do_tuning(self, tuning_attempt: TuningAttempt):
         while tuning_attempt.in_budget():
             config = {}

@@ -2,6 +2,9 @@
 import sys
 import os
 
+from schedgehammer.genetic_tuner_2 import GeneticTuner2
+from schedgehammer.random_search_2 import RandomSearch2
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 ##############################################################
 
@@ -9,19 +12,17 @@ import catbench as cb
 from interop_problem import problem_from_study
 
 from schedgehammer.benchmark import benchmark
-from schedgehammer.random_search import RandomSearch
-from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.tuner import EvalBudget
 
 ITERATIONS = 1000
-REPETITIONS = 5
+REPETITIONS = 50
 BENCHMARKS = [
     "spmm",
     "spmv",
     "sddmm",
     "mttkrp",
     "ttv",
-    # "asum",
+    "asum",
     "harris",
     "kmeans",
     "stencil",
@@ -29,17 +30,8 @@ BENCHMARKS = [
 
 if __name__ == "__main__":
     constrained_tuners = {
-        "GeneticTuner with constraints": GeneticTuner(),
-        "GeneticTuner with constraints and LocalMutation": GeneticTuner(
-            local_mutation=True
-        ),
-        "RandomSearch with constraints": RandomSearch(),
-    }
-
-    tuners = {
-        "GeneticTuner without constraints": GeneticTuner(),
-        "GeneticTuner with LocalMutation": GeneticTuner(local_mutation=True),
-        "RandomSearch without constraints": RandomSearch(),
+        "GeneticTuner2": GeneticTuner2(),
+        "RandomSearch2": RandomSearch2(),
     }
 
     for benchmark_name in BENCHMARKS:
@@ -49,18 +41,7 @@ if __name__ == "__main__":
             problem,
             [EvalBudget(ITERATIONS)],
             constrained_tuners,
-            f"results/{benchmark_name}",
-            REPETITIONS,
-            export_raw_data=True,
-        )
-
-        # remove constraints
-        problem.constraints = []
-        benchmark(
-            problem,
-            [EvalBudget(ITERATIONS)],
-            tuners,
-            f"results/{benchmark_name}",
+            f"results/catbench/{benchmark_name}",
             REPETITIONS,
             export_raw_data=True,
         )
