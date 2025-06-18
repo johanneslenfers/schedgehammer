@@ -1,11 +1,12 @@
 import taco_bindings
+from examples.schedules.taco.taco_api_operations import FUSE, REORDER, SPLIT
 from schedgehammer.benchmark import benchmark
 from schedgehammer.problem import Problem
 from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
 from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
 from schedgehammer.tuner import EvalBudget, Tuner
-from taco_api_operations import FUSE, SPLIT, REORDER
+
 
 # Parameters for the example
 def create_schedule() -> ScheduleContext:
@@ -22,6 +23,7 @@ def create_schedule() -> ScheduleContext:
         },
     )
 
+
 def finish_schedule(ctx: ScheduleContext):
     """Finalize the schedule"""
     # For TACO, we simply return the ScheduleEnv object
@@ -29,22 +31,22 @@ def finish_schedule(ctx: ScheduleContext):
 
 
 class TacoProblem(Problem):
-
     def __init__(self):
         super().__init__(
             "taco-mttkrp_dense",
-            {"schedule": ScheduleParam(
-                create_schedule,
-                finish_schedule,
-                2,
-                8,
-                api_description=[SPLIT, FUSE, REORDER],
-                first_operation_blacklist=[FUSE, REORDER],
-            )},
+            {
+                "schedule": ScheduleParam(
+                    create_schedule,
+                    finish_schedule,
+                    2,
+                    8,
+                    api_description=[SPLIT, FUSE, REORDER],
+                    first_operation_blacklist=[FUSE, REORDER],
+                )
+            },
             [],
-            init_solver=False
+            init_solver=False,
         )
-
 
     def cost_function(self, config):
         # Debug: print the keys in the config dictionary
@@ -68,6 +70,7 @@ class TacoProblem(Problem):
         # Record the best result so far
 
         return result
+
 
 if __name__ == "__main__":
     benchmark(
