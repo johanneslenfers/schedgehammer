@@ -68,7 +68,7 @@ for i, program in enumerate(sorted_programs):
     # Create horizontal dots for each runtime
     x_positions = [i] * len(runtimes)
     # Color based on runtime value (y-position), green for low values to red for high values
-    plt.scatter(x_positions, runtimes, alpha=0.6, s=5, c=runtimes, cmap="RdYlGn_r")
+    plt.scatter(x_positions, runtimes, alpha=0.6, s=2, c=runtimes, cmap="RdYlGn_r")
 
 plt.ylabel("Runtime (seconds)")
 plt.xlabel("Schedule Index (sorted by performance)")
