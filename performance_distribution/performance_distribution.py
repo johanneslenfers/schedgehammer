@@ -6,42 +6,31 @@ import json
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 
-from examples.schedules.taco.mttkrp_dense import create_schedule, finish_schedule
-from examples.schedules.taco.taco_api_operations import REORDER, SPLIT
+import tvm
+from api import REORDER, SPLIT, TILE
+from mttkrp import create_mttkrp_schedule as create_schedule
+from mttkrp import mttkrp_cost_function as cost_function
+
 from schedgehammer.schedules.schedule_type import ScheduleParam
 
-NUM_SCHEDULES = 10
-VARIANTS_PER_SCHEDULE = 10
+NUM_SCHEDULES = 500
+VARIANTS_PER_SCHEDULE = 50
+NAME = "mttkrp_tvm"
 
 if os.path.exists("/cloud/wwu1"):
     print("Running on palma II")
-    RESULTS_PATH = "/scratch/tmp/sspehr/performance_distribution_results.json"
+    RESULTS_PATH = f"/scratch/tmp/sspehr/performance_distribution_results_{NAME}.json"
 else:
-    RESULTS_PATH = "performance_distribution_results.json"
+    RESULTS_PATH = f"performance_distribution_results_{NAME}.json"
 
 
-def cost_function(config):
-    # Debug: print the keys in the config dictionary
-
-    s = config["schedule"]
-
-    # Time the execution
-    try:
-        exec_time_ms = s.execute()  # This returns time in milliseconds
-    except Exception as e:
-        print(f"Error during execution: {e}")
-        exec_time_ms = 10000000
-
-    # Convert to seconds (to match TVM's timing)
-    result = exec_time_ms / 1000.0
-
-    # If the reported time is 0, use the Python-measured time
-    # if result == 0:
-    #     result = end - start
-
-    # Record the best result so far
-
-    return result
+def finish_schedule(ctx):
+    return tvm.build(
+        ctx.environment["schedule"],
+        ctx.environment["alltensors"],
+        "llvm --opt-level=0",
+        name="anything",
+    )
 
 
 def evaluate_single_schedule(i):
@@ -52,7 +41,7 @@ def evaluate_single_schedule(i):
         finish_schedule,
         2,
         10,
-        api_description=[SPLIT, REORDER],
+        api_description=[SPLIT, REORDER, TILE],
     )
     tree = param.choose_random()
     for _ in range(VARIANTS_PER_SCHEDULE):
