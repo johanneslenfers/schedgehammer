@@ -34,28 +34,29 @@ TOLERANCE = 0.05  # 5% tolerance for "similar" runtimes
 
 
 def compare_two_elements(a, b):
-    """
-    Compare two elements directly.
-    Return: -1 if a should come before b
-            0 if a and b are equal
-            1 if b should come before a
-    """
-    if a["fastest"] < b["fastest"]:
-        if a["fastest"] * (1 + TOLERANCE) < b["fastest"]:
-            return -1
-        else:
-            if a["worst"] > b["worst"]:
-                return 1
-            else:
-                return -1
-    else:
-        if b["fastest"] * (1 + TOLERANCE) < a["fastest"]:
-            return 1
-        else:
-            if a["worst"] > b["worst"]:
-                return 1
-            else:
-                return -1
+    return -1 if a["fastest"] < b["fastest"] else 1
+    # """
+    # Compare two elements directly.
+    # Return: -1 if a should come before b
+    #         0 if a and b are equal
+    #         1 if b should come before a
+    # """
+    # if a["fastest"] < b["fastest"]:
+    #     if a["fastest"] * (1 + TOLERANCE) < b["fastest"]:
+    #         return -1
+    #     else:
+    #         if a["worst"] > b["worst"]:
+    #             return 1
+    #         else:
+    #             return -1
+    # else:
+    #     if b["fastest"] * (1 + TOLERANCE) < a["fastest"]:
+    #         return 1
+    #     else:
+    #         if a["worst"] > b["worst"]:
+    #             return 1
+    #         else:
+    #             return -1
 
 
 sorted_programs = sorted(program_metrics, key=cmp_to_key(compare_two_elements))
@@ -68,7 +69,7 @@ for i, program in enumerate(sorted_programs):
     # Create horizontal dots for each runtime
     x_positions = [i] * len(runtimes)
     # Color based on runtime value (y-position), green for low values to red for high values
-    plt.scatter(x_positions, runtimes, alpha=0.6, s=2, c=runtimes, cmap="RdYlGn_r")
+    plt.scatter(x_positions, runtimes, alpha=0.6, s=1, c=runtimes, cmap="RdYlGn_r")
 
 plt.ylabel("Runtime (seconds)")
 plt.xlabel("Schedule Index (sorted by performance)")
