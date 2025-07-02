@@ -1,3 +1,6 @@
+import json
+import sys
+
 import numpy
 import numpy as np
 import tvm
@@ -22,7 +25,6 @@ N = 1024
 DTYPE = "float32"
 ITERATIONS = 200  # If >63 limit ansors iterations else it will crash
 
-ansor_results = []
 genetic_results = []
 random_results = []
 
@@ -42,17 +44,6 @@ def plot_results_from_several_runs(results, label) -> range:
         alpha=0.3,
     )
     return xs
-
-
-class StoreResultCallback(PythonBasedMeasureCallback):
-    def callback(self, policy, inputs, results):
-        for result in results[0:]:
-            cost = float(result.costs[0])
-            if not ansor_results[-1] or cost < ansor_results[-1][-1]:
-                ansor_results[-1].append(cost)
-            else:
-                ansor_results[-1].append(ansor_results[-1][-1])
-
 
 def create_schedule() -> ScheduleContext:
     k = te.reduce_axis((0, K), "k")
@@ -104,7 +95,14 @@ def finish_schedule(ctx: ScheduleContext):
     )
 
 
-def get_ansor_results():
+def get_ansor_results(iterations, runs):
+    ansor_results = []
+
+    class StoreResultCallback(PythonBasedMeasureCallback):
+        def callback(self, policy, inputs, results):
+            for result in results[0:]:
+                ansor_results[-1].append(result.costs[0])
+
     @auto_scheduler.register_workload
     def create_task_func():
         k = te.reduce_axis((0, K), "k")
@@ -115,12 +113,12 @@ def get_ansor_results():
 
     # Create the search task
     target = tvm.target.Target("llvm --opt-level=0")
-    for _ in range(RUNS):
+    for _ in range(runs):
         ansor_results.append([])
         task = auto_scheduler.SearchTask(func=create_task_func, target=target)
 
         tuning_options = auto_scheduler.TuningOptions(
-            num_measure_trials=ITERATIONS,
+            num_measure_trials=iterations,
             measure_callbacks=[
                 auto_scheduler.RecordToFile("matmul.json"),
                 StoreResultCallback(),
@@ -130,29 +128,7 @@ def get_ansor_results():
 
         # Begin tuning process
         task.tune(tuning_options)
-
-        # Apply the best schedule and build the function
-        sch, args = task.apply_best("matmul.json")
-        func = tvm.build(sch, args, target)
-
-        dev = tvm.device("llvm --opt-level=0", 0)
-        # Create sample input arrays
-        a_np = np.random.uniform(size=(M, K)).astype(DTYPE)
-        b_np = np.random.uniform(size=(K, N)).astype(DTYPE)
-        c_np = np.zeros((M, N), dtype=DTYPE)
-
-        # Create TVM NDArray
-        a_tvm = tvm.nd.array(a_np)
-        b_tvm = tvm.nd.array(b_np)
-        c_tvm = tvm.nd.array(c_np)
-
-        evaluator = func.time_evaluator(func.entry_name, dev, repeat=3, number=3)
-        exec_time = evaluator(a_tvm, b_tvm, c_tvm).median
-        print("Ansor execution time: %.3f ms" % (exec_time * 1e3))
-        ansor_results[-1][-1] = (
-            exec_time  # Make sure the real execution time is not higher than calculated by ansor
-        )
-
+    return ansor_results
 
 def get_baseline() -> float:
     # Find time of unchanged schedule
@@ -211,31 +187,32 @@ class MMProblem(Problem):
 
 
 if __name__ == "__main__":
+    if sys.argv[1] == 'ansor':
+        with open('results/ansor/mm.json', 'w') as f:
+            json.dump(get_ansor_results(63, 25), f)
+    else:
+        benchmark(
+            MMProblem,
+            [EvalBudget(ITERATIONS)],
+            {
+                "genetic_tuner": GeneticTuner2(),
+                "random_tuner": RandomSearch2(),
+            },
+            f"results/tvm/mm",
+            15,
+            True,
+            16,
+        )
 
-    benchmark(
-        MMProblem,
-        [EvalBudget(ITERATIONS)],
-        {
-            "genetic_tuner": GeneticTuner2(),
-            "random_tuner": RandomSearch2(),
-        },
-        f"results/tvm/mm",
-        15,
-        True,
-        16,
-    )
+        baseline_score = get_baseline()
+        print("Baseline:", baseline_score)
 
-    # get_ansor_results()
-
-    baseline_score = get_baseline()
-    print("Baseline:", baseline_score)
-
-    best_block_schedule = float("inf")
-    for bn_exp in range(1, 10):
-        for kfactor_exp in range(1, 10):
-            v = get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
-            print(
-                "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp, v
-            )
-            best_block_schedule = min(best_block_schedule, v)
-    print("Best block schedule:", best_block_schedule)
+        best_block_schedule = float("inf")
+        for bn_exp in range(1, 10):
+            for kfactor_exp in range(1, 10):
+                v = get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
+                print(
+                    "Try default schedule with hyperparameters:", 2**bn_exp, 2**kfactor_exp, v
+                )
+                best_block_schedule = min(best_block_schedule, v)
+        print("Best block schedule:", best_block_schedule)
