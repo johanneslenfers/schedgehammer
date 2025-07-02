@@ -1,6 +1,10 @@
+import json
+import sys
+
 import numpy
 import tvm
 from tvm import auto_scheduler, te
+from tvm.auto_scheduler import HardwareParams
 from tvm.auto_scheduler.measure import PythonBasedMeasureCallback
 
 from tvm_api import TILE, SPLIT, REORDER
@@ -55,20 +59,20 @@ def get_ansor_conv_2d_results(iterations, runs):
     class StoreResultCallback(PythonBasedMeasureCallback):
         def callback(self, policy, inputs, results):
             for result in results[0:]:
-                cost = float(result.costs[0])
-                if not ansor_results[-1] or cost < ansor_results[-1][-1]:
-                    ansor_results[-1].append(cost)
-                else:
-                    ansor_results[-1].append(ansor_results[-1][-1])
+                ansor_results[-1].append(float(result.costs[0]))
 
     # Create the search task
     target = tvm.target.Target("llvm")
     for _ in range(runs):
         ansor_results.append([])
-        task = auto_scheduler.SearchTask(func=create_task_func, target=target)
+        task = auto_scheduler.SearchTask(
+            func=create_task_func,
+            target=target,
+            hardware_params=HardwareParams(num_cores=1, target=target)
+        )
 
         tuning_options = auto_scheduler.TuningOptions(
-            num_measure_trials=min(iterations, 63),
+            num_measure_trials=iterations,
             measure_callbacks=[
                 auto_scheduler.RecordToFile("conv_2d.json"),
                 StoreResultCallback(),
@@ -169,16 +173,19 @@ class Conv2DProblem(Problem):
         return conv_2d_cost_function(config)
 
 if __name__ == "__main__":
-
-    benchmark(
-        Conv2DProblem,
-        [EvalBudget(100)],
-        {
-            "genetic_tuner": ScheduleGeneticTuner(),
-            "random_tuner": ScheduleRandomSearch(),
-        },
-        f"results/tvm/conv2d",
-        15,
-        True,
-        16,
-    )
+    if sys.argv[1] == 'ansor':
+        with open('results/ansor/conv2d.json', 'w') as f:
+            json.dump(get_ansor_conv_2d_results(63, 25), f)
+    else:
+        benchmark(
+            Conv2DProblem,
+            [EvalBudget(100)],
+            {
+                "genetic_tuner": ScheduleGeneticTuner(),
+                "random_tuner": ScheduleRandomSearch(),
+            },
+            f"results/tvm/conv2d",
+            15,
+            True,
+            16,
+        )
