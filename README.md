@@ -92,7 +92,7 @@ Schedgehammer was evaluated on traditional parameter auto-tuning tasks using the
 - **MTTKRP** (Matricized Tensor Times Khatri-Rao Product): Core operation in tensor decomposition
 - **SpMV** (Sparse Matrix-Vector Multiplication): Widely used kernel in sparse linear algebra
 
-**Results**: Across all benchmarks, Schedgehammer's methods showed robustness, benefiting from its ability to handle both constraints and permutation parameters. While competitors could converge faster when they succeeded, they often failed in certain scenarios (e.g., OpenTuner failed on Harris due to lack of constraint support) where Schedgehammer remained reliable. This indicates that Schedgehammer delivers consistent, near-optimal performance.
+**Results**: Across all benchmarks, Schedgehammer's methods showed robustness, benefiting from its ability to handle both constraints and permutation parameters. While competitors could converge faster when they succeeded, they often failed in certain scenarios (e.g., OpenTuner failed on Harris due to lack of constraint support) where Schedgehammer remained reliable. This indicates that Schedgehammer delivers consistent, near-optimal performance, though there remains room to improve convergence speed.
 
 ![Figure 4: Results of Schedgehammer numeric tuning on benchmark tests](diagrams/figure_page_7.png)
 
