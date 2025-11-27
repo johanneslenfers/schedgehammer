@@ -80,6 +80,121 @@ This corresponds to a graph where:
 
 Schedule auto-tuning differs fundamentally from classical parameter tuning because it operates on a **dynamic, stateful search space** rather than a static parameter space. Each applied operation mutates the schedule and modifies the set of valid operations that can follow. Schedgehammer handles this dependency by leveraging the graph representation: when an operation is applied, the available axes and their connections are updated accordingly.
 
+## System Overview
+
+Schedgehammer is organized into several core components that work together to provide a flexible auto-tuning framework:
+
+### Core Interfaces
+
+#### `Problem`
+The central interface for defining an optimization problem. A `Problem` consists of:
+- **Parameters**: A dictionary mapping parameter names to `Param` objects (e.g., `RealParam`, `IntegerParam`, `ScheduleParam`)
+- **Cost Function**: A callable that takes a parameter configuration and returns a performance score (lower is better)
+- **Constraints**: A list of constraint expressions (as strings) that define valid regions of the search space
+
+```python
+problem = Problem(
+    name="my_optimization",
+    params={
+        "tile_size": IntegerParam(min_val=1, max_val=1024),
+        "schedule": ScheduleParam(...)
+    },
+    cost_function=lambda config: evaluate_performance(config),
+    constraints=["tile_size % 2 == 0", "tile_size > 10"]
+)
+```
+
+#### `Tuner`
+Abstract base class for optimization algorithms. Implementations include:
+- **`RandomSearch`**: Uniform random sampling of the search space
+- **`GeneticTuner`**: Evolutionary algorithm with population-based search, crossover, and mutation
+
+All tuners implement the `tune(problem, budgets)` method, which returns a `TuningResult` containing the evaluation history and best configuration found.
+
+#### `Budget`
+Controls the optimization budget:
+- **`EvalBudget`**: Limits the number of function evaluations
+- **`TimeBudget`**: Limits the total execution time
+
+### Parameter Types
+
+Schedgehammer supports a rich set of parameter types in `param_types.py`:
+
+- **`SwitchParam`**: Boolean parameters (True/False)
+- **`RealParam`**: Continuous floating-point values with bounds
+- **`IntegerParam`**: Discrete integer values
+- **`ExpIntParam`**: Exponential integers (e.g., 2^x for x in a range)
+- **`PermutationParam`**: Permutations of sequences
+- **`OrdinalParam`**: Ordered categorical values
+- **`CategoricalParam`**: Unordered categorical values
+- **`ScheduleParam`**: First-class schedule parameters (see below)
+
+Each parameter type implements:
+- `choose_random()`: Generate a random value from the parameter's domain
+- `get_value_range()`: Return all possible values (for constraint solving)
+- `translate_for_evaluation()`: Transform the value for cost function evaluation
+
+### Schedule Abstraction
+
+#### `ScheduleParam`
+A special parameter type that represents schedules as first-class tunable objects. It requires:
+- **`create_schedule()`**: Factory function that creates an initial schedule context with axes
+- **`finish_schedule()`**: Function that compiles a schedule tree into an executable schedule
+- **`api_description`**: List of available `Operation` objects (e.g., TILE, REORDER, SPLIT)
+- **`min_length` / `max_length`**: Bounds on the number of operations in a schedule
+
+#### `Operation`
+Represents a scheduling transformation (e.g., tiling, reordering). Each operation defines:
+- **Parameters**: Mix of axis parameters, primitive parameters, and axis pool parameters
+- **Return type**: What the operation produces (new axes, or void)
+- **Preconditions**: Whether the operation can be applied given the current schedule state
+
+#### `SchedulePlanningTree`
+Internal graph representation of a schedule:
+- **Operation nodes**: Represent applied scheduling operations
+- **Axis nodes**: Represent loop axes and their dependencies
+- Maintains topological ordering and tracks consumed/unconsumed axes
+
+### Constraint System
+
+The constraint system (`constraint.py`) provides:
+
+- **`ConstraintExpression`**: Parses constraint strings using ANTLR-generated parser
+- **`Solver`**: Generates valid configurations satisfying all constraints using depth-first search
+- Supports complex expressions with arithmetic, logical, and comparison operators
+
+Constraints can reference multiple parameters and express relationships like:
+```python
+constraints = [
+    "tile_size % vector_width == 0",
+    "tile_size * tile_size <= 1024",
+    "(tile_size == 1) or (tile_size % 2 == 0)"
+]
+```
+
+### Evaluation Infrastructure
+
+#### `TuningAttempt`
+Manages the optimization process:
+- Tracks evaluation history and best configuration found
+- Handles constraint validation
+- Manages budget limits
+- Provides timeout protection for cost function evaluations
+
+#### `TuningResult`
+Contains the results of a tuning run:
+- Complete evaluation history
+- Best configuration and score
+- Execution time statistics
+
+### Integration Points
+
+Schedgehammer integrates with USLs through the `ScheduleParam` interface:
+1. **TVM Integration**: Operations for Reorder, Split, and Tile transformations
+2. **TACO Integration**: Operations for Fuse, Split, and Reorder transformations
+
+The framework is designed to be easily extensible to other USLs by implementing the `Operation` interface and providing appropriate `create_schedule` and `finish_schedule` functions.
+
 ## Results
 
 Schedgehammer was evaluated through two case studies:
