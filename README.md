@@ -1,5 +1,12 @@
 # Schedgehammer: Auto-Tuning Compiler Optimizations Beyond Numerical Parameters
 
+## Goal of the Research Project
+
+Schedgehammer is a general-purpose auto-scheduling framework designed to optimize program schedules across diverse compiler infrastructures. Unlike existing auto-schedulers that are tightly coupled to specific intermediate representations or rely on template-based search, Schedgehammer introduces a **generic and reusable representation of optimization schedules** that can be integrated with multiple user-schedulable languages (USLs).
+
+The key research goal is to **decouple auto-scheduling from specific compiler infrastructures**, treating scheduling as a generic optimization problem. This allows different USLs (such as TVM and TACO) to benefit from a shared and extensible tuning infrastructure without requiring compiler-specific assumptions or extensive reengineering.
+
+
 ## Example: What is Being Optimized?
 
 To understand what Schedgehammer optimizes, consider a matrix multiplication example in TVM. The algorithm defines *what* to compute:
@@ -219,12 +226,6 @@ print(f"Verified execution time: {execution_time:.6f} seconds")
 ```
 
 This example demonstrates the core workflow: define operations, create a schedule parameter, specify a cost function, and let Schedgehammer automatically search for high-performing schedules.
-
-## Goal of the Research Project
-
-Schedgehammer is a general-purpose auto-scheduling framework designed to optimize program schedules across diverse compiler infrastructures. Unlike existing auto-schedulers that are tightly coupled to specific intermediate representations or rely on template-based search, Schedgehammer introduces a **generic and reusable representation of optimization schedules** that can be integrated with multiple user-schedulable languages (USLs).
-
-The key research goal is to **decouple auto-scheduling from specific compiler infrastructures**, treating scheduling as a generic optimization problem. This allows different USLs (such as TVM and TACO) to benefit from a shared and extensible tuning infrastructure without requiring compiler-specific assumptions or extensive reengineering.
 
 ### Key Contributions
 
