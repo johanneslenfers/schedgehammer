@@ -49,6 +49,9 @@ For TVM integration, also install:
 ```bash
 pip install apache-tvm
 ```
+For TACO integration, TACO needs to be built from source. See the TACO documentation for build instructions.
+
+
 
 ### Usage Example
 
