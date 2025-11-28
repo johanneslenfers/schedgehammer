@@ -200,29 +200,6 @@ result = tuner.tune(
     budgets=[EvalBudget(max_evaluations=100)]
 )
 
-# Get the best score
-best_score = result.best_score_list()[-1]
-print(f"Best execution time: {best_score:.6f} seconds")
-
-# Extract the best schedule configuration
-best_eval = min(result.record_of_evaluations, key=lambda x: x.score)
-best_config = dict(zip(problem.params.keys(), best_eval.config))
-best_schedule = best_config["schedule"]
-
-# Use the best schedule
-print(f"Best schedule found after {len(result.record_of_evaluations)} evaluations")
-print(f"Best schedule function: {best_schedule}")
-
-# The best_schedule is a compiled TVM function that can be used directly
-# Example: run the optimized schedule
-dev = tvm.device("llvm", 0)
-a = tvm.nd.array(np.random.rand(1024, 1024).astype("float32"), dev)
-b = tvm.nd.array(np.random.rand(1024, 1024).astype("float32"), dev)
-c = tvm.nd.array(np.zeros((1024, 1024), dtype="float32"), dev)
-
-evaluator = best_schedule.time_evaluator(best_schedule.entry_name, dev, repeat=10)
-execution_time = evaluator(a, b, c).mean
-print(f"Verified execution time: {execution_time:.6f} seconds")
 ```
 
 This example demonstrates the core workflow: define operations, create a schedule parameter, specify a cost function, and let Schedgehammer automatically search for high-performing schedules.
