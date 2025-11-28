@@ -1,5 +1,201 @@
 # Schedgehammer: Auto-Tuning Compiler Optimizations Beyond Numerical Parameters
 
+## Example: What is Being Optimized?
+
+To understand what Schedgehammer optimizes, consider a matrix multiplication example in TVM. The algorithm defines *what* to compute:
+
+```python
+# Algorithm: Matrix Multiplication
+N = 1024
+A = te.placeholder((N, N), name="A")
+B = te.placeholder((N, N), name="B")
+k = te.reduce_axis((0, N), name="k")
+C = te.compute(
+    (N, N),
+    lambda i, j: te.sum(A[i, k] * B[k, j], axis=k),
+    name="C",
+)
+```
+
+The **optimization schedule** defines *how* to execute it, applying transformations like tiling, splitting, reordering, fusion, parallelization, vectorization, and unrolling:
+
+```python
+# Optimization Schedule
+s = te.create_schedule(C.op)
+io, jo, ii, ji = s[C].tile(C.op.axis[0], C.op.axis[1], 32, 32)
+ko, ki = s[C].split(k, factor=4)
+s[C].reorder(io, jo, ko, ii, ji, ki)
+outer = s[C].fuse(io, jo)
+s[C].parallel(outer)
+s[C].vectorize(ji)
+s[C].unroll(ki)
+```
+
+This schedule composition is complex: the order of operations matters, parameters must be chosen carefully (e.g., tile sizes 32×32, split factor 4), and transformations must be compatible with each other. Schedgehammer **automates** the search for effective schedule compositions, exploring the vast space of possible transformation sequences and parameter combinations to find high-performing schedules.
+
+## Quick Start
+
+### Installation
+
+Schedgehammer requires Python 3 and can be installed with:
+
+```bash
+pip install schedgehammer
+```
+
+This will install the core dependencies (numpy, matplotlib, antlr4-python3-runtime, interopt, catbench).
+
+For TVM integration, also install:
+```bash
+pip install apache-tvm
+```
+
+### Usage Example
+
+Here's a minimal example of using Schedgehammer to optimize a TVM matrix multiplication schedule:
+
+#### 1. Define Schedule Operations
+
+First, define the scheduling operations available to the tuner. For TVM, these might include tiling, splitting, and reordering:
+
+```python
+from schedgehammer.param_types import ExpIntParam
+from schedgehammer.schedules.schedule_type import (
+    AxisParam, AxisPoolPermutationParam, Operation, 
+    ReturnTypeAxesList, ReturnTypeNone
+)
+
+# Define a TILE operation
+TILE = Operation(
+    name="tile",
+    function_call=lambda schedule, kwargs: schedule.tile(**kwargs),
+    params={
+        "x_parent": AxisParam(consuming=True),
+        "y_parent": AxisParam(consuming=True),
+        "x_factor": ExpIntParam(base=2, min_exp=1, max_exp=8),
+        "y_factor": ExpIntParam(base=2, min_exp=1, max_exp=8),
+    },
+    return_type=ReturnTypeAxesList(4)
+)
+
+# Define a SPLIT operation
+SPLIT = Operation(
+    name="split",
+    function_call=lambda schedule, kwargs: schedule.split(**kwargs),
+    params={
+        "parent": AxisParam(consuming=True),
+        "factor": ExpIntParam(base=2, min_exp=1, max_exp=8),
+    },
+    return_type=ReturnTypeAxesList(2)
+)
+
+# Define a REORDER operation
+REORDER = Operation(
+    name="reorder",
+    function_call=lambda schedule, kwargs: schedule.reorder(*kwargs["order"]),
+    params={"order": AxisPoolPermutationParam()},
+    return_type=ReturnTypeNone
+)
+```
+
+#### 2. Define Schedule Parameter
+
+Create functions to initialize and finalize schedules, then define a `ScheduleParam`:
+
+```python
+from schedgehammer.schedules.schedule_type import ScheduleContext, ScheduleParam
+import tvm
+from tvm import te
+
+def create_schedule() -> ScheduleContext:
+    """Create initial schedule with axes"""
+    N = 1024
+    A = te.placeholder((N, N), name="A")
+    B = te.placeholder((N, N), name="B")
+    k = te.reduce_axis((0, N), name="k")
+    C = te.compute(
+        (N, N),
+        lambda i, j: te.sum(A[i, k] * B[k, j], axis=k),
+        name="C",
+    )
+    s = te.create_schedule(C.op)
+    
+    return ScheduleContext(
+        axes=[C.op.axis[0], C.op.axis[1], C.op.reduce_axis[0]],
+        environment={"schedule": s, "tensor": C, "alltensors": [A, B, C]}
+    )
+
+def finish_schedule(ctx: ScheduleContext):
+    """Compile schedule to executable function"""
+    return tvm.build(
+        ctx.environment["schedule"],
+        ctx.environment["alltensors"],
+        name="matmul"
+    )
+
+# Define the schedule parameter
+schedule_param = ScheduleParam(
+    create_schedule=create_schedule,
+    finish_schedule=finish_schedule,
+    min_length=2,  # Minimum number of operations
+    max_length=10,  # Maximum number of operations
+    api_description=[TILE, SPLIT, REORDER]  # Available operations
+)
+```
+
+#### 3. Define Optimization Problem and Run Tuner
+
+Create a cost function that evaluates schedule performance, then define the problem and run the tuner:
+
+```python
+from schedgehammer.problem import Problem
+from schedgehammer.genetic_tuner import GeneticTuner
+from schedgehammer.tuner import EvalBudget
+import numpy as np
+
+def cost_function(config):
+    """Evaluate schedule performance"""
+    func = config["schedule"]
+    dev = tvm.device("llvm", 0)
+    
+    # Test data
+    a = tvm.nd.array(np.random.rand(1024, 1024).astype("float32"), dev)
+    b = tvm.nd.array(np.random.rand(1024, 1024).astype("float32"), dev)
+    c = tvm.nd.array(np.zeros((1024, 1024), dtype="float32"), dev)
+    
+    # Measure execution time
+    evaluator = func.time_evaluator(func.entry_name, dev, repeat=5)
+    return evaluator(a, b, c).mean
+
+# Create optimization problem
+problem = Problem(
+    name="matmul_optimization",
+    params={"schedule": schedule_param},
+    cost_function=cost_function,
+    constraints=[],
+    init_solver=False
+)
+
+# Run schedule-specific genetic tuner
+from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
+
+tuner = ScheduleGeneticTuner(
+    population_size=50,
+    elitism_share=0.05,
+    mutation_prob=0.1
+)
+
+result = tuner.tune(
+    problem=problem,
+    budgets=[EvalBudget(max_evaluations=100)]
+)
+
+print(f"Best execution time: {result.best_score_list()[-1]:.6f} seconds")
+print(f"Best configuration found after {result.current_evaluation} evaluations")
+```
+
+This example demonstrates the core workflow: define operations, create a schedule parameter, specify a cost function, and let Schedgehammer automatically search for high-performing schedules.
+
 ## Goal of the Research Project
 
 Schedgehammer is a general-purpose auto-scheduling framework designed to optimize program schedules across diverse compiler infrastructures. Unlike existing auto-schedulers that are tightly coupled to specific intermediate representations or rely on template-based search, Schedgehammer introduces a **generic and reusable representation of optimization schedules** that can be integrated with multiple user-schedulable languages (USLs).
