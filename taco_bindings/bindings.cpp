@@ -12,6 +12,63 @@ typedef struct {
     TensorBase output_tensor;
 } ScheduleEnvInternal;
 
+void mttkrp_dense(ScheduleEnvInternal *se) {
+    const int N = 100;
+    Tensor<double> A({N,N,N}, Format{Dense, Dense, Dense});
+    Tensor<double> B({N,N}, Format{Dense, Dense});
+    Tensor<double> C({N,N}, Format{Dense, Dense});
+    Tensor<double> out({N,N}, Format{Dense, Dense});
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            for (int k = 0; k < N; ++k) {
+                A.insert({i,j,k}, static_cast<double>(rand() % 100));
+            }
+        }
+    }
+
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) {
+            B.insert({i,j}, static_cast<double>(rand() % 100));
+        }
+    }
+    for(int i = 0; i < N; ++i) {
+        for(int j = 0; j < N; ++j) {
+            C.insert({i,j}, static_cast<double>(rand() % 100));
+        }
+    }
+    IndexVar i("i"), j("j"), k("k"), l("l");
+    out(i,j) = A(i,k,l) * B(l,j) * C(k,j);
+    se->stmt = out.getAssignment().concretize();
+    se->output_tensor = out;
+}
+
+void gemm(ScheduleEnvInternal *se) {
+   // Dimensions
+  const int I = 600, J = 600, K = 600;
+
+  // Define indices
+  IndexVar i("i"), j("j"), k("k");
+
+  // Declare tensors
+  Tensor<double> A({I, K}, Format{Dense, Dense});
+  Tensor<double> B({K, J}, Format{Dense, Dense});
+  Tensor<double> C({I, J}, Format{Dense, Dense});
+
+  // Fill A and B with some values
+  for (int i = 0; i < I; ++i)
+    for (int k = 0; k < K; ++k)
+      A.insert({i, k}, static_cast<double>(rand() % 100));
+  
+  for (int k = 0; k < K; ++k)
+    for (int j = 0; j < J; ++j)
+        B.insert({k, j}, static_cast<double>(rand() % 100));
+
+    // Define the computation
+  C(i, j) = A(i, k) * B(k, j);
+  se->stmt = C.getAssignment().concretize();
+  se->output_tensor = C;
+}
+
 void spmv(ScheduleEnvInternal *se) {
     std::default_random_engine gen(0);
     std::uniform_real_distribution<double> unif(0.0, 1.0);
@@ -200,6 +257,10 @@ static int ScheduleEnv_init(ScheduleEnvInternal *self, PyObject *args) {
         sddmm(self);
     } else if (ps == "mini") {
         mini(self);
+    } else if (ps == "gemm") {
+        gemm(self);
+    } else if (ps == "mttkrp_dense") {
+        mttkrp_dense(self);
     } else {
         PyErr_SetString(PyExc_NotImplementedError, "unsupported benchmark!");
         return NULL;

@@ -1,9 +1,13 @@
 import csv
+import itertools
 import json
+import multiprocessing
 import os
 from collections import defaultdict
 from datetime import datetime
+from multiprocessing import pool
 from pathlib import Path
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +20,26 @@ from schedgehammer.tuner import Budget, Tuner
 
 def statistical_description(a):
     return {"avg": np.mean(a), "std": np.std(a)}
+
+class NoDaemonProcess(multiprocessing.Process):
+    @property
+    def daemon(self):
+        return False
+
+    @daemon.setter
+    def daemon(self, value):
+        pass
+
+
+class NoDaemonContext(type(multiprocessing.get_context())):
+    Process = NoDaemonProcess
+
+# We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
+# because the latter is only a wrapper function, not a proper class.
+class NestablePool(pool.Pool):
+    def __init__(self, *args, **kwargs):
+        kwargs['context'] = NoDaemonContext()
+        super(NestablePool, self).__init__(*args, **kwargs)
 
 
 class ArchivedResult:
@@ -103,50 +127,36 @@ class ArchivedResult:
         plt.savefig(output_file)
 
 
+def run_task(obj):
+    ((problem_class, budget, export_raw_data, output_path, timeout_secs), (tuner_name, tuner), i) = obj
+    print(f"begin {tuner_name}-{i}")
+    problem = problem_class()
+    result = tuner.tune(problem, budget, timeout_secs)
+    if export_raw_data:
+        result.generate_csv(
+            os.path.join(output_path, f"runs/{tuner_name}-{i}.csv")
+        )
+    print(f"end {tuner_name}-{i}")
+
+
 def benchmark(
-    problem: Problem,
+    problem_class,
     budget: list[Budget],
     tuner_list: dict[str, Tuner],
     output_path: str = "",
     repetitions: int = 1,
     export_raw_data: bool = False,
-) -> ArchivedResult:
-    report = {}
+    parallel: int = 1,
+    timeout_secs: float = 90,
+):
 
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
-    all_results: dict[str, list[list[EvaluationResult]]] = {}
+    tasks = list(itertools.product(
+        [(problem_class, budget, export_raw_data, output_path, timeout_secs)],
+        tuner_list.items(),
+        range(repetitions)
+    ))
 
-    for tuner_name, tuner in tuner_list.items():
-        total_time = []
-        algorithm_time = []
-        final_score = []
-        start_date = datetime.now()
-
-        all_results[tuner_name] = []
-
-        for i in range(repetitions):
-            result = tuner.tune(problem, budget)
-            if export_raw_data:
-                result.generate_csv(
-                    os.path.join(output_path, f"runs/{tuner_name}-{i}.csv")
-                )
-
-            all_results[tuner_name].append(result.record_of_evaluations)
-
-            total_time.append(result.complete_execution_time)
-            algorithm_time.append(result.algorithm_execution_time)
-            final_score.append(result.best_score_list()[-1])
-
-        report[tuner_name] = {
-            "tuner_desc": str(tuner),
-            "starttime": str(start_date),
-            "repetitions": repetitions,
-            "execution_time": statistical_description(total_time),
-            "algorithm_time": statistical_description(algorithm_time),
-            "final_score": statistical_description(final_score),
-        }
-
-    with open(os.path.join(output_path, "report.json"), "w") as f:
-        f.write(json.dumps(report, indent=2))
-    return ArchivedResult(runs_of_tuners=all_results)
+    with NestablePool(parallel) as pool:
+        pool.map(run_task, tasks)
