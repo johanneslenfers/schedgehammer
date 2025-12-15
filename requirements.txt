@@ -1,4 +1,5 @@
 numpy<=1.26.4
+pandas==1.3.5
 matplotlib
 interopt<=0.2.1
 catbench @ git+https://github.com/anonymoussisef/catbench@main

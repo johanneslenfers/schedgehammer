@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 
@@ -13,15 +14,17 @@ from mttkrp import mttkrp_cost_function as cost_function
 
 from schedgehammer.schedules.schedule_type import ScheduleParam
 
-NUM_SCHEDULES = 500
-VARIANTS_PER_SCHEDULE = 50
 NAME = "mttkrp_tvm"
 
+# Determine results path - use RESULTS_DIR environment variable if set, otherwise default location
+RESULTS_DIR = os.environ.get("RESULTS_DIR", ".")
 if os.path.exists("/cloud/wwu1"):
     print("Running on palma II")
     RESULTS_PATH = f"/scratch/tmp/sspehr/performance_distribution_results_{NAME}.json"
 else:
-    RESULTS_PATH = f"performance_distribution_results_{NAME}.json"
+    RESULTS_PATH = os.path.join(
+        RESULTS_DIR, f"performance_distribution_results_{NAME}.json"
+    )
 
 
 def finish_schedule(ctx):
@@ -33,7 +36,8 @@ def finish_schedule(ctx):
     )
 
 
-def evaluate_single_schedule(i):
+def evaluate_single_schedule(args):
+    i, variants_per_schedule = args
     print(i)
     schedule_instance_costs = []
     param = ScheduleParam(
@@ -44,27 +48,52 @@ def evaluate_single_schedule(i):
         api_description=[SPLIT, REORDER, TILE],
     )
     tree = param.choose_random()
-    for _ in range(VARIANTS_PER_SCHEDULE):
+    for _ in range(variants_per_schedule):
         cost = cost_function({"schedule": param.translate_for_evaluation(tree)})
         schedule_instance_costs.append(cost)
         tree.randomly_tweak_primitive_params()
     return schedule_instance_costs
 
 
-def evaluate_performance_distribution():
+def evaluate_performance_distribution(num_schedules, variants_per_schedule):
     num_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", multiprocessing.cpu_count()))
     print(f"Using {num_cpus} CPUs for multiprocessing.")
+    print(
+        f"Evaluating {num_schedules} schedules with {variants_per_schedule} variants each."
+    )
 
     with ProcessPoolExecutor(max_workers=num_cpus) as executor:
-        results = list(executor.map(evaluate_single_schedule, range(NUM_SCHEDULES)))
+        results = list(
+            executor.map(
+                evaluate_single_schedule,
+                [(i, variants_per_schedule) for i in range(num_schedules)],
+            )
+        )
 
     with open(RESULTS_PATH, "w") as f:
         json.dump(results, f, indent=2)
 
     print(
-        f"Saved {len(results)} schedules with {VARIANTS_PER_SCHEDULE} variants each to performance_distribution_results.json"
+        f"Saved {len(results)} schedules with {variants_per_schedule} variants each to {RESULTS_PATH}"
     )
 
 
 if __name__ == "__main__":
-    evaluate_performance_distribution()
+    parser = argparse.ArgumentParser(
+        description="Run performance distribution analysis"
+    )
+    parser.add_argument(
+        "--num-schedules",
+        type=int,
+        default=500,
+        help="Number of schedules to evaluate (default: 500)",
+    )
+    parser.add_argument(
+        "--variants-per-schedule",
+        type=int,
+        default=50,
+        help="Number of variants per schedule (default: 50)",
+    )
+    args = parser.parse_args()
+
+    evaluate_performance_distribution(args.num_schedules, args.variants_per_schedule)
