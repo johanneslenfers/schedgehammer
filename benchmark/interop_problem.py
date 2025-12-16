@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import math
 
 from interopt import Study
@@ -11,6 +12,7 @@ from interopt.parameter import (
 )
 
 from schedgehammer.problem import Problem
+from schedgehammer.param_types import Param
 from schedgehammer.param_types import (
     CategoricalParam,
     ExpIntParam,
@@ -19,6 +21,35 @@ from schedgehammer.param_types import (
     RealParam,
     SwitchParam,
 )
+
+
+class CatbenchProblem(Problem):
+    def __init__(
+        self,
+        name: str,
+        params: dict[str, Param],
+        study: Study,
+        constraints: list[str] = [],
+    ):
+        super().__init__(name, params, constraints, init_solver=True)
+        self.fidelity_params = {}
+        for fidelity_param in study.definition.search_space.fidelity_params:
+            self.fidelity_params[fidelity_param.name] = fidelity_param.default
+        self.study = study
+
+    def cost_function(self, config: dict[str, any]) -> float:
+        config = config.copy()
+        for name, val in config.items():
+            if type(val) is list:
+                config[name] = str(val)
+
+        # print(f"query: {config}")
+        # print(f"fidelyti param: {self.fidelity_params}")
+        # print("query")
+        result = self.study.query(config, self.fidelity_params)["compute_time"]
+        # print(f"query result: {result}")
+
+        return result
 
 
 def problem_from_study(study: Study) -> Problem:
@@ -50,20 +81,17 @@ def problem_from_study(study: Study) -> Problem:
             )
         else:
             raise ValueError(f"Problem got unsupported parameter type: {type(param)}")
-    fidelity_params = {}
-    for fidelity_param in study.definition.search_space.fidelity_params:
-        fidelity_params[fidelity_param.name] = fidelity_param.default
 
-    def interop_eval(config):
-        config = config.copy()
-        for name, val in config.items():
-            if type(val) is list:
-                config[name] = str(val)
-        return study.query(config, fidelity_params)["compute_time"]
+    # def interop_eval(config):
+    #     config = config.copy()
+    #     for name, val in config.items():
+    #         if type(val) is list:
+    #             config[name] = str(val)
+    #     return study.query(config, fidelity_params)["compute_time"]
 
-    return Problem(
+    return CatbenchProblem(
         study.definition.name,
         params,
-        interop_eval,
+        study,
         [c.constraint for c in study.definition.search_space.constraints],
     )

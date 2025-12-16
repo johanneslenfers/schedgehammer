@@ -15,13 +15,21 @@ class EvaluationResult:
     timestamp: float
 
 
-@dataclass
+# @dataclass
 class TuningResult:
-    parameters: dict[str, Param]
-    record_of_evaluations: list[EvaluationResult]
-    complete_execution_time: float
-    algorithm_execution_time: float
-    evaluation_execution_time: float
+
+    def __init__(self,
+                parameters: dict[str, Param],
+                record_of_evaluations: list[EvaluationResult],
+                complete_execution_time: float,
+                algorithm_execution_time: float,
+                evaluation_execution_time: float,
+                ) -> None:
+        self.parameters: dict[str, Param] = parameters
+        self.record_of_evaluations: list[EvaluationResult] = record_of_evaluations
+        self.complete_execution_time: float = complete_execution_time
+        self.algorithm_execution_time: float = algorithm_execution_time
+        self.evaluation_execution_time: float = evaluation_execution_time
 
     def generate_csv(self, name="evaluations.csv", only_improvements=False):
         Path(name).parent.mkdir(parents=True, exist_ok=True)
