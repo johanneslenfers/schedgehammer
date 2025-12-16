@@ -8,3 +8,5 @@ apache-tvm
 xgboost
 pytest
 networkx
+pyatf
+opentuner
