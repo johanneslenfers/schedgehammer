@@ -128,9 +128,8 @@ class ArchivedResult:
 
 
 def run_task(obj):
-    ((problem_class, budget, export_raw_data, output_path, timeout_secs), (tuner_name, tuner), i) = obj
+    ((problem, budget, export_raw_data, output_path, timeout_secs), (tuner_name, tuner), i) = obj
     print(f"begin {tuner_name}-{i}")
-    problem = problem_class()
     result = tuner.tune(problem, budget, timeout_secs)
     if export_raw_data:
         result.generate_csv(
@@ -140,7 +139,7 @@ def run_task(obj):
 
 
 def benchmark(
-    problem_class,
+    problem,
     budget: list[Budget],
     tuner_list: dict[str, Tuner],
     output_path: str = "",
@@ -153,10 +152,15 @@ def benchmark(
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     tasks = list(itertools.product(
-        [(problem_class, budget, export_raw_data, output_path, timeout_secs)],
+        [(problem, budget, export_raw_data, output_path, timeout_secs)],
         tuner_list.items(),
         range(repetitions)
     ))
-
-    with NestablePool(parallel) as pool:
-        pool.map(run_task, tasks)
+    # Avoid multiprocessing when parallel == 1 to prevent pickling issues
+    # with locally defined lambdas inside constraint expressions.
+    if parallel == 1:
+        for t in tasks:
+            run_task(t)
+    else:
+        with NestablePool(parallel) as pool:
+            pool.map(run_task, tasks)
