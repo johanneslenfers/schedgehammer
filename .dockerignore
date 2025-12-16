@@ -1,0 +1,26 @@
+# Ignore unnecessary files for Docker build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.env
+.venv
+env/
+venv/
+*.log
+results/
+*.png
+*.json
+!performance_distribution/*.py
+!performance_distribution/*.sh
+.git/
+.gitignore
+test_data/
+kick_off_assignment/
+
