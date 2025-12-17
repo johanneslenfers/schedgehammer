@@ -6,8 +6,8 @@ set -e
 # Configuration
 IMAGE_NAME="schedgehammer-perf"
 RESULTS_DIR="$(pwd)/results"
-NUM_SCHEDULES=${NUM_SCHEDULES:-3}
-VARIANTS_PER_SCHEDULE=${VARIANTS_PER_SCHEDULE:-2}
+NUM_SCHEDULES=${NUM_SCHEDULES:-500}
+VARIANTS_PER_SCHEDULE=${VARIANTS_PER_SCHEDULE:-50}
 
 # Get backend from command-line argument, default to tvm
 BACKEND=${1:-tvm}

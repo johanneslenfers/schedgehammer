@@ -21,6 +21,7 @@ from schedgehammer.tuner import Budget, Tuner
 def statistical_description(a):
     return {"avg": np.mean(a), "std": np.std(a)}
 
+
 class NoDaemonProcess(multiprocessing.Process):
     @property
     def daemon(self):
@@ -34,11 +35,12 @@ class NoDaemonProcess(multiprocessing.Process):
 class NoDaemonContext(type(multiprocessing.get_context())):
     Process = NoDaemonProcess
 
+
 # We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
 # because the latter is only a wrapper function, not a proper class.
 class NestablePool(pool.Pool):
     def __init__(self, *args, **kwargs):
-        kwargs['context'] = NoDaemonContext()
+        kwargs["context"] = NoDaemonContext()
         super(NestablePool, self).__init__(*args, **kwargs)
 
 
@@ -128,14 +130,19 @@ class ArchivedResult:
 
 
 def run_task(obj):
-    ((problem, budget, export_raw_data, output_path, timeout_secs), (tuner_name, tuner), i) = obj
-    print(f"begin {tuner_name}-{i}")
+    (
+        (problem, budget, export_raw_data, output_path, timeout_secs),
+        (tuner_name, tuner),
+        i,
+    ) = obj
+    print(f"begin {tuner_name}-{i}", flush=True)
+    # Instantiate problem if it's a class (needed for multiprocessing)
+    if isinstance(problem, type):
+        problem = problem()
     result = tuner.tune(problem, budget, timeout_secs)
     if export_raw_data:
-        result.generate_csv(
-            os.path.join(output_path, f"runs/{tuner_name}-{i}.csv")
-        )
-    print(f"end {tuner_name}-{i}")
+        result.generate_csv(os.path.join(output_path, f"runs/{tuner_name}-{i}.csv"))
+    print(f"end {tuner_name}-{i}", flush=True)
 
 
 def benchmark(
@@ -148,14 +155,15 @@ def benchmark(
     parallel: int = 1,
     timeout_secs: float = 90,
 ):
-
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
-    tasks = list(itertools.product(
-        [(problem, budget, export_raw_data, output_path, timeout_secs)],
-        tuner_list.items(),
-        range(repetitions)
-    ))
+    tasks = list(
+        itertools.product(
+            [(problem, budget, export_raw_data, output_path, timeout_secs)],
+            tuner_list.items(),
+            range(repetitions),
+        )
+    )
     # Avoid multiprocessing when parallel == 1 to prevent pickling issues
     # with locally defined lambdas inside constraint expressions.
     if parallel == 1:

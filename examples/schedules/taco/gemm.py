@@ -45,6 +45,13 @@ class TacoProblem(Problem):
             init_solver=False
         )
 
+    def create_schedule(self) -> ScheduleContext:
+        """Create a TACO schedule"""
+        return create_schedule()
+
+    def finish_schedule(self, ctx: ScheduleContext):
+        """Finalize the schedule"""
+        return finish_schedule(ctx)
 
     def cost_function(self, config):
         # Debug: print the keys in the config dictionary
