@@ -13,9 +13,9 @@ import itertools
 from pathlib import Path
 import csv
 
-ITERATIONS = 100
-REPETITIONS = 5
-OUTPUT_DIR = "results/pyatf_mttkrp"
+ITERATIONS = 1000
+REPETITIONS = 2
+OUTPUT_DIR = "results_catbench/pyatf_mttkrp"
 
 # Define MTKKRP tuning parameters based on catbench definition
 # IntExponential parameters: chunk_size, unroll_factor, omp_chunk_size
