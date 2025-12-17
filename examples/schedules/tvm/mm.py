@@ -7,14 +7,14 @@ from examples.schedules.tvm.tvm_schedule_problem import TVMScheduleProblem
 from schedgehammer.param_types import ParamValue
 from schedgehammer.schedules.schedule_type import ScheduleContext
 
-M = 1024
-K = 1024
-N = 1024
+M = 512
+K = 512
+N = 512
 
 DTYPE = "float32"
 
-class MMProblem(TVMScheduleProblem):
 
+class MMProblem(TVMScheduleProblem):
     def __init__(self):
         a = numpy.random.rand(M, K).astype(DTYPE)
         b = numpy.random.rand(K, N).astype(DTYPE)
@@ -83,8 +83,13 @@ class MMProblem(TVMScheduleProblem):
         best_block_schedule = float("inf")
         for bn_exp in range(1, 10):
             for kfactor_exp in range(1, 10):
-                v = self.get_blocking_baseline(2 ** bn_exp, 2 ** kfactor_exp)
-                print("Try default schedule with hyperparameters:", 2 ** bn_exp, 2 ** kfactor_exp, v)
+                v = self.get_blocking_baseline(2**bn_exp, 2**kfactor_exp)
+                print(
+                    "Try default schedule with hyperparameters:",
+                    2**bn_exp,
+                    2**kfactor_exp,
+                    v,
+                )
                 best_block_schedule = min(best_block_schedule, v)
         print("Best block schedule:", best_block_schedule)
         return best_block_schedule

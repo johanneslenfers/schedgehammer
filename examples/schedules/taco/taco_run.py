@@ -4,10 +4,7 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../.."))
 
-from examples.schedules.tvm.conv_2d import Conv2DProblem
-from examples.schedules.tvm.mm import MMProblem
-from examples.schedules.tvm.mttkrp import MttkrpProblem
-from examples.schedules.tvm.tvm_schedule_problem import TVMScheduleProblem
+from examples.schedules.taco.gemm import TacoProblem
 from schedgehammer.benchmark import benchmark
 from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
 from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
@@ -17,26 +14,16 @@ from schedgehammer.tuner import EvalBudget
 def main():
     assert len(sys.argv) >= 2
     problem_clss = {
-        "mm": MMProblem,
-        "conv2d": Conv2DProblem,
-        "mttkrp": MttkrpProblem,
+        "gemm": TacoProblem,
     }
 
     assert sys.argv[1] in problem_clss
     problem_cls = problem_clss[sys.argv[1]]
-    problem: TVMScheduleProblem = problem_cls()
+    problem = problem_cls()
 
     mode = sys.argv[2] if len(sys.argv) > 2 else None
 
-    if mode == "ansor":
-        iterations = int(os.environ.get("ITERATIONS", 63))
-        runs = int(os.environ.get("RUNS", 1))
-        results = problem.get_ansor_results(iterations, runs)
-        results_dir = os.environ.get("RESULTS_DIR", "results")
-        os.makedirs(f"{results_dir}/ansor", exist_ok=True)
-        with open(f"{results_dir}/ansor/{problem.name}.json", "w") as f:
-            json.dump(results, f)
-    elif mode == "baseline":
+    if mode == "baseline":
         s = problem.create_schedule()
         val = problem.finish_schedule(s)
         time = problem.cost_function({"schedule": val})
@@ -55,7 +42,7 @@ def main():
                 "genetic_tuner": ScheduleGeneticTuner(),
                 "random_tuner": ScheduleRandomSearch(),
             },
-            f"{results_dir}/tvm/{problem.name}",
+            f"{results_dir}/taco/{problem.name}",
             runs,  # Number of repetitions for each tuner
             True,
             1,  # Run sequentially (parallel=1) to allow proper interruption
@@ -64,3 +51,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

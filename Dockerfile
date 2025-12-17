@@ -47,8 +47,10 @@ COPY . .
 ENV LD_LIBRARY_PATH=/app/taco/build/lib
 RUN pip install --no-cache-dir .
 
-# Make the entrypoint script executable
+# Make the entrypoint scripts executable
 RUN chmod +x performance_distribution/run_analysis.sh
+RUN chmod +x examples/schedules/tvm/run_mm_benchmark.sh
+RUN chmod +x examples/schedules/taco/run_taco_gemm_benchmark.sh
 
 # Set the entrypoint to run the analysis and generate the plot
 ENTRYPOINT ["performance_distribution/run_analysis.sh"]
