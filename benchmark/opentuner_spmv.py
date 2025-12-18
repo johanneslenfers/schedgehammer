@@ -20,7 +20,7 @@ from opentuner.search.manipulator import IntegerParameter, EnumParameter, Permut
 # Tuning config
 ITERATIONS = 1000
 REPETITIONS = 10
-OUTPUT_DIR = "results_catbench/opentuner_spmv"
+OUTPUT_DIR = "results/results_catbench/opentuner_spmv"
 INVALID_COST = 1e12
 
 # Load catbench study

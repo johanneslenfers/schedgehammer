@@ -263,7 +263,7 @@ def plot_benchmark(ax, benchmark, runs_by_method, n_resamples):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", default="results_catbench")
+    parser.add_argument("--root", default="results/results_catbench")
     parser.add_argument("--bootstrap", type=int, default=2000)
     args = parser.parse_args()
 
@@ -286,7 +286,7 @@ def main():
         plot_benchmark(ax, bench, data.get(bench, {}), args.bootstrap)
 
     fig.tight_layout()
-    fig.savefig("Figure4.pdf", bbox_inches="tight")
+    fig.savefig("results/Figure4.pdf", bbox_inches="tight")
     plt.show()
 
 

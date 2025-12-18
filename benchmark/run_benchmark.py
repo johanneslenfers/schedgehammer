@@ -49,7 +49,7 @@ if __name__ == "__main__":
             problem,
             [EvalBudget(ITERATIONS)],
             constrained_tuners,
-            f"results_catbench/{benchmark_name}",
+            f"results/results_catbench/{benchmark_name}",
             REPETITIONS,
             export_raw_data=True,
         )

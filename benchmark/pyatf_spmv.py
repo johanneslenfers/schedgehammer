@@ -16,7 +16,7 @@ from pyatf.search_techniques import AUCBandit
 
 ITERATIONS = 1000
 REPETITIONS = 10
-OUTPUT_DIR = "results_catbench/pyatf_spmv"
+OUTPUT_DIR = "results/results_catbench/pyatf_spmv"
 
 # Define SPMV tuning parameters based on dataset columns
 # chunk_size, chunk_size2, chunk_size3 as powers of 2 up to 1024

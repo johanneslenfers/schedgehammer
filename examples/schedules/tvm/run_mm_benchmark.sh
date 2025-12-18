@@ -51,8 +51,9 @@ from schedgehammer.benchmark import ArchivedResult
 
 results_dir = Path(os.environ.get('RESULTS_DIR', 'results'))
 
+
 # Set up plot style
-plt.style.use('default')
+plt.style.use('fivethirtyeight')
 plt.rcParams['figure.facecolor'] = 'white'
 plt.rcParams['axes.facecolor'] = 'white'
 plt.rcParams['figure.dpi'] = 300
@@ -157,5 +158,5 @@ print(f'Plot saved to {results_dir / \"mm_benchmark_plot.png\"}')
 
 echo ""
 echo "Analysis complete! Results saved to:"
-echo "  - Plot: $RESULTS_DIR/mm_benchmark_plot.png"
+echo "  - Plot: $RESULTS_DIR/Figure5_1.png"
 

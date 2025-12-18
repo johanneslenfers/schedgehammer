@@ -15,7 +15,7 @@ from pyatf.search_techniques import AUCBandit
 
 ITERATIONS = 1000
 REPETITIONS = 10
-OUTPUT_DIR = "results_catbench/pyatf_harris"
+OUTPUT_DIR = "results/results_catbench/pyatf_harris"
 
 # Harris parameters
 exp_1_1024 = Set(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
