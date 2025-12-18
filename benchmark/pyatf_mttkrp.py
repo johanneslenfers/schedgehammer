@@ -14,7 +14,7 @@ from pathlib import Path
 import csv
 
 ITERATIONS = 1000
-REPETITIONS = 2
+REPETITIONS = 10
 OUTPUT_DIR = "results_catbench/pyatf_mttkrp"
 
 # Define MTKKRP tuning parameters based on catbench definition

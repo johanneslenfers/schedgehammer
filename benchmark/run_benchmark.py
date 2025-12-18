@@ -13,16 +13,16 @@ from schedgehammer.random_search import RandomSearch
 from schedgehammer.genetic_tuner import GeneticTuner
 from schedgehammer.tuner import EvalBudget
 
-ITERATIONS = 100
-REPETITIONS = 2
+ITERATIONS = 1000
+REPETITIONS = 10
 BENCHMARKS = [
     # "spmm",
-    # "spmv",
+    "spmv",
     # "sddmm",
     "mttkrp",
     # "ttv",
     # "asum",
-    # "harris",
+    "harris",
     # "kmeans",
     # "stencil",
 ]
@@ -30,9 +30,9 @@ BENCHMARKS = [
 if __name__ == "__main__":
     constrained_tuners = {
         "GeneticTuner with constraints": GeneticTuner(),
-        "GeneticTuner with constraints and LocalMutation": GeneticTuner(
-            local_mutation=True
-        ),
+        # "GeneticTuner with constraints and LocalMutation": GeneticTuner(
+        #     local_mutation=True
+        # ),
         "RandomSearch with constraints": RandomSearch(),
     }
 
@@ -49,18 +49,7 @@ if __name__ == "__main__":
             problem,
             [EvalBudget(ITERATIONS)],
             constrained_tuners,
-            f"results2/{benchmark_name}",
+            f"results_catbench/{benchmark_name}",
             REPETITIONS,
             export_raw_data=True,
         )
-
-        # # remove constraints
-        # problem.constraints = []
-        # benchmark(
-        #     problem,
-        #     [EvalBudget(ITERATIONS)],
-        #     tuners,
-        #     f"results2/{benchmark_name}",
-        #     REPETITIONS,
-        #     export_raw_data=True,
-        # )

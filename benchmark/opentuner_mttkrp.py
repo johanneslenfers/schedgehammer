@@ -20,8 +20,8 @@ from opentuner.search.manipulator import IntegerParameter, EnumParameter, Permut
 
 # Tuning config
 ITERATIONS = 1000
-REPETITIONS = 5
-OUTPUT_DIR = "results/opentuner_mttkrp"
+REPETITIONS = 10
+OUTPUT_DIR = "results_catbench/opentuner_mttkrp"
 INVALID_COST = 1e12
 
 # Load catbench study

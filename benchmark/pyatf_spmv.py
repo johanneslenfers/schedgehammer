@@ -15,7 +15,7 @@ from pyatf.tuning_data import Cost, CostFunctionError
 from pyatf.search_techniques import AUCBandit
 
 ITERATIONS = 1000
-REPETITIONS = 3
+REPETITIONS = 10
 OUTPUT_DIR = "results_catbench/pyatf_spmv"
 
 # Define SPMV tuning parameters based on dataset columns

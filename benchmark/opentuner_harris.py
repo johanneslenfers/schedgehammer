@@ -19,8 +19,8 @@ from opentuner.search.manipulator import IntegerParameter, EnumParameter
 
 # Tuning config
 ITERATIONS = 1000
-REPETITIONS = 5
-OUTPUT_DIR = "results/opentuner_harris"
+REPETITIONS = 10
+OUTPUT_DIR = "results_catbench/opentuner_harris"
 INVALID_COST = 1e12
 
 # Load catbench study

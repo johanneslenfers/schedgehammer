@@ -13,9 +13,9 @@ from pyatf import TP, Interval, Set, Tuner, abort_conditions
 from pyatf.tuning_data import Cost, CostFunctionError
 from pyatf.search_techniques import AUCBandit
 
-ITERATIONS = 100
-REPETITIONS = 5
-OUTPUT_DIR = "results/pyatf_harris"
+ITERATIONS = 1000
+REPETITIONS = 10
+OUTPUT_DIR = "results_catbench/pyatf_harris"
 
 # Harris parameters
 exp_1_1024 = Set(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
