@@ -286,8 +286,7 @@ def main():
         plot_benchmark(ax, bench, data.get(bench, {}), args.bootstrap)
 
     fig.tight_layout()
-    fig.savefig("performance_evolution_catbench.png", dpi=200, bbox_inches="tight")
-    fig.savefig("performance_evolution_catbench.pdf", bbox_inches="tight")
+    fig.savefig("Figure4.pdf", bbox_inches="tight")
     plt.show()
 
 
