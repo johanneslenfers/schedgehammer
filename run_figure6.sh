@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-IMAGE_NAME="schedgehammer-perf"
+IMAGE_NAME="schedgehammer-cc-artifact"
 RESULTS_DIR="$(pwd)/results"
 NUM_SCHEDULES=${NUM_SCHEDULES:-500}
 VARIANTS_PER_SCHEDULE=${VARIANTS_PER_SCHEDULE:-50}
