@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-IMAGE_NAME="schedgehammer-perf"
+IMAGE_NAME="schedgehammer-cc-artifact"
 CONTAINER_NAME="schedgehammer-mttkrp-benchmark-$$"
 RESULTS_DIR="$(pwd)/results"
 ITERATIONS=${ITERATIONS:-63}

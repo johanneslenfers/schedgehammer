@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-IMAGE_NAME="schedgehammer-perf"
+IMAGE_NAME="schedgehammer-cc-artifact"
 CONTAINER_NAME="schedgehammer-catbench-$$"
 RESULTS_DIR="$(pwd)/results"
 CATBENCH_RESULTS_DIR="$(pwd)/catbench_results"
