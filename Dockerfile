@@ -50,7 +50,11 @@ RUN pip install --no-cache-dir .
 # Make the entrypoint scripts executable
 RUN chmod +x performance_distribution/run_analysis.sh
 RUN chmod +x examples/schedules/tvm/run_mm_benchmark.sh
+RUN chmod +x examples/schedules/tvm/run_2dconv_benchmark.sh
+RUN chmod +x examples/schedules/tvm/run_mttkrp_benchmark.sh
 RUN chmod +x examples/schedules/taco/run_taco_gemm_benchmark.sh
+RUN chmod +x examples/schedules/taco/run_taco_spmv_benchmark.sh
+RUN chmod +x examples/schedules/taco/run_taco_mttkrp_benchmark.sh
 
 # Set the entrypoint to run the analysis and generate the plot
 ENTRYPOINT ["performance_distribution/run_analysis.sh"]

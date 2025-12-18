@@ -1,5 +1,5 @@
 #!/bin/bash
-# Entrypoint script to run TACO GEMM benchmark (schedgehammer, baseline) and generate plot
+# Entrypoint script to run TACO MTTKRP benchmark (schedgehammer, baseline) and generate plot
 
 set -e
 
@@ -10,7 +10,7 @@ BUDGET=${BUDGET:-100}
 # Use results directory if it exists (mounted volume), otherwise use current directory
 RESULTS_DIR="${RESULTS_DIR:-/app/results}"
 
-echo "Starting TACO GEMM benchmark analysis..."
+echo "Starting TACO MTTKRP benchmark analysis..."
 echo "Configuration: ${RUNS} runs per tuner, ${BUDGET} schedgehammer budget"
 
 # Change to app directory
@@ -19,17 +19,17 @@ export RESULTS_DIR
 
 # Create necessary directories
 mkdir -p "$RESULTS_DIR/base"
-mkdir -p "$RESULTS_DIR/taco/taco-gemm"
+mkdir -p "$RESULTS_DIR/taco/taco-mttkrp"
 
 # Run schedgehammer benchmark
 echo ""
 echo "Running schedgehammer benchmark..."
-python -u examples/schedules/taco/taco_run.py gemm
+python -u examples/schedules/taco/taco_run.py mttkrp
 
 # Run baseline
 echo ""
 echo "Running baseline..."
-python -u examples/schedules/taco/taco_run.py gemm baseline
+python -u examples/schedules/taco/taco_run.py mttkrp baseline
 
 # Generate plot using existing ArchivedResult.plot() and extend it
 echo ""
@@ -53,7 +53,7 @@ plt.rcParams['figure.dpi'] = 300
 plt.figure(figsize=(10, 6))
 
 # Load schedgehammer results
-schedgehammer_dir = results_dir / 'taco' / 'taco-gemm' / 'runs'
+schedgehammer_dir = results_dir / 'taco' / 'taco-mttkrp' / 'runs'
 archived_res = ArchivedResult()
 archived_res.load_runs(str(schedgehammer_dir), ['genetic_tuner', 'random_tuner'])
 
@@ -88,7 +88,7 @@ for tuner, runs in archived_res.runs_of_tuners.items():
     plt.fill_between(xs, lower_bound, upper_bound, alpha=0.3, color=color)
 
 # Add baseline as horizontal dashed line
-baseline_file = results_dir / 'base' / 'taco-gemm.json'
+baseline_file = results_dir / 'base' / 'taco-mttkrp.json'
 if baseline_file.exists():
     with open(baseline_file, 'r') as f:
         baseline_time = float(json.load(f))
@@ -100,11 +100,11 @@ plt.yscale('log')
 plt.legend(fontsize=10, loc='upper right')
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig(str(results_dir / 'Figure5_2_gemm.png'), dpi=300, bbox_inches='tight')
-print(f'Plot saved to {results_dir / "Figure5_2_gemm.png"}')
+plt.savefig(str(results_dir / 'Figure5_2_mttkrp.png'), dpi=300, bbox_inches='tight')
+print(f'Plot saved to {results_dir / "Figure5_2_mttkrp.png"}')
 "
 
 echo ""
 echo "Analysis complete! Results saved to:"
-echo "  - Plot: $RESULTS_DIR/Figure5_2_gemm.png"
+echo "  - Plot: $RESULTS_DIR/Figure5_2_mttkrp.png"
 

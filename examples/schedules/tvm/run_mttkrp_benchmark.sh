@@ -1,5 +1,5 @@
 #!/bin/bash
-# Entrypoint script to run MM benchmark (schedgehammer, ansor, baseline) and generate plot
+# Entrypoint script to run MTTKRP benchmark (schedgehammer, ansor, baseline) and generate plot
 
 set -e
 
@@ -11,7 +11,7 @@ BUDGET=${BUDGET:-100}
 # Use results directory if it exists (mounted volume), otherwise use current directory
 RESULTS_DIR="${RESULTS_DIR:-/app/results}"
 
-echo "Starting MM benchmark analysis..."
+echo "Starting MTTKRP benchmark analysis..."
 echo "Configuration: ${ITERATIONS} ansor iterations, ${RUNS} runs per tuner, ${BUDGET} schedgehammer budget"
 
 # Change to app directory
@@ -21,22 +21,22 @@ export RESULTS_DIR
 # Create necessary directories
 mkdir -p "$RESULTS_DIR/ansor"
 mkdir -p "$RESULTS_DIR/base"
-mkdir -p "$RESULTS_DIR/tvm/mm"
+mkdir -p "$RESULTS_DIR/tvm/mttkrp"
 
 # Run schedgehammer benchmark
 echo ""
 echo "Running schedgehammer benchmark..."
-python -u examples/schedules/tvm/tvm_run.py mm
+python -u examples/schedules/tvm/tvm_run.py mttkrp
 
 # Run ansor
 echo ""
 echo "Running ansor..."
-python -u examples/schedules/tvm/tvm_run.py mm ansor
+python -u examples/schedules/tvm/tvm_run.py mttkrp ansor
 
 # Run baseline
 echo ""
 echo "Running baseline..."
-python -u examples/schedules/tvm/tvm_run.py mm baseline
+python -u examples/schedules/tvm/tvm_run.py mttkrp baseline
 
 # Generate plot using existing ArchivedResult.plot() and extend it
 echo ""
@@ -60,7 +60,7 @@ plt.rcParams['figure.dpi'] = 300
 plt.figure(figsize=(10, 6))
 
 # Load schedgehammer results
-schedgehammer_dir = results_dir / 'tvm' / 'mm' / 'runs'
+schedgehammer_dir = results_dir / 'tvm' / 'mttkrp' / 'runs'
 archived_res = ArchivedResult()
 archived_res.load_runs(str(schedgehammer_dir), ['genetic_tuner', 'random_tuner'])
 
@@ -95,7 +95,7 @@ for tuner, runs in archived_res.runs_of_tuners.items():
     plt.fill_between(xs, lower_bound, upper_bound, alpha=0.3, color=color)
 
 # Process and plot Ansor results as progression
-ansor_file = results_dir / 'ansor' / 'mm.json'
+ansor_file = results_dir / 'ansor' / 'mttkrp.json'
 if ansor_file.exists():
     with open(ansor_file, 'r') as f:
         ansor_data = json.load(f)
@@ -140,7 +140,7 @@ if ansor_file.exists():
                             zorder=5, label=None)
 
 # Add baseline as horizontal dashed line
-baseline_file = results_dir / 'base' / 'mm.json'
+baseline_file = results_dir / 'base' / 'mttkrp.json'
 if baseline_file.exists():
     with open(baseline_file, 'r') as f:
         baseline_time = float(json.load(f))
@@ -152,11 +152,11 @@ plt.yscale('log')
 plt.legend(fontsize=10, loc='upper right')
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig(str(results_dir / 'Figure5_1_mm.png'), dpi=300, bbox_inches='tight')
-print(f'Plot saved to {results_dir / "Figure5_1_mm.png"}')
+plt.savefig(str(results_dir / 'Figure5_2_mttkrp.png'), dpi=300, bbox_inches='tight')
+print(f'Plot saved to {results_dir / "Figure5_2_mttkrp.png"}')
 "
 
 echo ""
 echo "Analysis complete! Results saved to:"
-echo "  - Plot: $RESULTS_DIR/Figure5_1_mm.png"
+echo "  - Plot: $RESULTS_DIR/Figure5_2_mttkrp.png"
 
