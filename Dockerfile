@@ -32,6 +32,7 @@ RUN cd taco && \
     make -j$(nproc) taco && \
     cd ../..
 
+
 # Copy requirements and install Python dependencies
 # This layer is cached unless requirements change
 COPY requirements.txt pyproject.toml ./
@@ -50,7 +51,7 @@ RUN pip install --no-cache-dir .
 # Make the entrypoint scripts executable
 RUN chmod +x performance_distribution/run_analysis.sh
 RUN chmod +x examples/schedules/tvm/run_mm_benchmark.sh
-RUN chmod +x examples/schedules/tvm/run_2dconv_benchmark.sh
+RUN chmod +x examples/schedules/tvm/run_conv2d_benchmark.sh
 RUN chmod +x examples/schedules/tvm/run_mttkrp_benchmark.sh
 RUN chmod +x examples/schedules/taco/run_taco_gemm_benchmark.sh
 RUN chmod +x examples/schedules/taco/run_taco_spmv_benchmark.sh

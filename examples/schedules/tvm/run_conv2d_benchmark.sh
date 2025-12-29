@@ -11,7 +11,7 @@ BUDGET=${BUDGET:-100}
 # Use results directory if it exists (mounted volume), otherwise use current directory
 RESULTS_DIR="${RESULTS_DIR:-/app/results}"
 
-echo "Starting 2DConv benchmark analysis..."
+echo "Starting conv2d benchmark analysis..."
 echo "Configuration: ${ITERATIONS} ansor iterations, ${RUNS} runs per tuner, ${BUDGET} schedgehammer budget"
 
 # Change to app directory
@@ -21,22 +21,22 @@ export RESULTS_DIR
 # Create necessary directories
 mkdir -p "$RESULTS_DIR/ansor"
 mkdir -p "$RESULTS_DIR/base"
-mkdir -p "$RESULTS_DIR/tvm/2dconv"
+mkdir -p "$RESULTS_DIR/tvm/conv2d"
 
 # Run schedgehammer benchmark
 echo ""
 echo "Running schedgehammer benchmark..."
-python -u examples/schedules/tvm/tvm_run.py 2dconv
+python -u examples/schedules/tvm/tvm_run.py conv2d
 
 # Run ansor
 echo ""
 echo "Running ansor..."
-python -u examples/schedules/tvm/tvm_run.py 2dconv ansor
+python -u examples/schedules/tvm/tvm_run.py conv2d ansor
 
 # Run baseline
 echo ""
 echo "Running baseline..."
-python -u examples/schedules/tvm/tvm_run.py 2dconv baseline
+python -u examples/schedules/tvm/tvm_run.py conv2d baseline
 
 # Generate plot using existing ArchivedResult.plot() and extend it
 echo ""
@@ -60,7 +60,7 @@ plt.rcParams['figure.dpi'] = 300
 plt.figure(figsize=(10, 6))
 
 # Load schedgehammer results
-schedgehammer_dir = results_dir / 'tvm' / '2dconv' / 'runs'
+schedgehammer_dir = results_dir / 'tvm' / 'conv2d' / 'runs'
 archived_res = ArchivedResult()
 archived_res.load_runs(str(schedgehammer_dir), ['genetic_tuner', 'random_tuner'])
 
@@ -140,7 +140,7 @@ if ansor_file.exists():
                             zorder=5, label=None)
 
 # Add baseline as horizontal dashed line
-baseline_file = results_dir / 'base' / '2dconv.json'
+baseline_file = results_dir / 'base' / 'conv2d.json'
 if baseline_file.exists():
     with open(baseline_file, 'r') as f:
         baseline_time = float(json.load(f))
@@ -152,11 +152,11 @@ plt.yscale('log')
 plt.legend(fontsize=10, loc='upper right')
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig(str(results_dir / 'Figure5_1_2dconv.png'), dpi=300, bbox_inches='tight')
-print(f'Plot saved to {results_dir / "Figure5_1_2dconv.png"}')
+plt.savefig(str(results_dir / 'Figure5_1_conv2d.png'), dpi=300, bbox_inches='tight')
+print(f'Plot saved to {results_dir / "Figure5_1_conv2d.png"}')
 "
 
 echo ""
 echo "Analysis complete! Results saved to:"
-echo "  - Plot: $RESULTS_DIR/Figure5_1_2dconv.png"
+echo "  - Plot: $RESULTS_DIR/Figure5_1_conv2d.png"
 

@@ -57,7 +57,7 @@ docker run -it --name "$CONTAINER_NAME" \
     -e RESULTS_DIR="/app/results" \
     -e PYTHONUNBUFFERED=1 \
     -v "$RESULTS_DIR:/app/results" \
-    --entrypoint examples/schedules/tvm/run_2dconv_benchmark.sh \
+    --entrypoint examples/schedules/tvm/run_conv2d_benchmark.sh \
     "$IMAGE_NAME"
 EXIT_CODE=$?
 set -e  # Re-enable exit on error
@@ -79,7 +79,7 @@ echo "Analysis Complete!"
 echo "=========================================="
 echo ""
 
-PLOT_FILE="$RESULTS_DIR/Figure5_6_2dconv.png"
+PLOT_FILE="$RESULTS_DIR/Figure5_1_conv2d.png"
 
 echo "Results are available at:"
 echo "  📊 Plot: $PLOT_FILE"
@@ -88,7 +88,7 @@ echo "To view the plot, open:"
 echo "  $PLOT_FILE"
 echo ""
 echo ""
-echo "Usage: ./run_figure5_tvm_2dconv.sh"
+echo "Usage: ./run_figure5_tvm_conv2d.sh"
 echo ""
 echo "Optional environment variables:"
 echo "  ITERATIONS - Number of ansor iterations (default: 63)"
