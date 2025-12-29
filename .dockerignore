@@ -21,6 +21,4 @@ results/
 !performance_distribution/*.sh
 .git/
 .gitignore
-test_data/
 kick_off_assignment/
-

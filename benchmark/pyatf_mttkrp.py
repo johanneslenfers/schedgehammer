@@ -13,8 +13,8 @@ import itertools
 from pathlib import Path
 import csv
 
-ITERATIONS = 1000
-REPETITIONS = 10
+ITERATIONS = 100
+REPETITIONS = 5
 OUTPUT_DIR = "results/results_catbench/pyatf_mttkrp"
 
 # Define MTKKRP tuning parameters based on catbench definition
@@ -71,13 +71,13 @@ permutation = TP(
 # Load catbench study
 study = cb.benchmark("mttkrp")
 
-# Fidelity parameters (use defaults from taco_fidelity_params)
-fidelity_params = {
-    'iterations': 10,
-    'repeats': 5,
-    'wait_between_repeats': 0,
-    'wait_after_run': 10
-}
+# Fidelity parameters (defaults)
+fidelity_params = {}
+
+for fidelity_param in study.definition.search_space.fidelity_params:
+    fidelity_params[fidelity_param.name] = fidelity_param.default
+
+
 
 # Cost function
 def cost_function(config):

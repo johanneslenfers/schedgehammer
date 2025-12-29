@@ -5,16 +5,19 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../.."))
 
 from examples.schedules.taco.gemm import TacoProblem
+from examples.schedules.taco.mttkrp import TacoMttkrpProblem
+from examples.schedules.taco.spmv import TacoSpmvProblem
 from schedgehammer.benchmark import benchmark
 from schedgehammer.schedules.schedule_genetic_tuner import ScheduleGeneticTuner
 from schedgehammer.schedules.schedule_random_search import ScheduleRandomSearch
 from schedgehammer.tuner import EvalBudget
 
-
 def main():
     assert len(sys.argv) >= 2
     problem_clss = {
         "gemm": TacoProblem,
+        "spmv": TacoSpmvProblem,
+        "mttkrp": TacoMttkrpProblem,
     }
 
     assert sys.argv[1] in problem_clss

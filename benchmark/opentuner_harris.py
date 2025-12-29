@@ -18,21 +18,18 @@ from opentuner.search.manipulator import ConfigurationManipulator
 from opentuner.search.manipulator import IntegerParameter, EnumParameter
 
 # Tuning config
-ITERATIONS = 1000
-REPETITIONS = 10
+ITERATIONS = 100
+REPETITIONS = 5
 OUTPUT_DIR = "results/results_catbench/opentuner_harris"
 INVALID_COST = 1e12
 
 # Load catbench study
 study = cb.benchmark("harris")
 
-# Fidelity parameters (defaults from rise_fidelity_params)
-fidelity_params = {
-    'iterations': 10,
-    'repeats': 5,
-    'wait_between_repeats': 0,
-    'wait_after_run': 10,
-}
+fidelity_params = {}
+
+for fidelity_param in study.definition.search_space.fidelity_params:
+    fidelity_params[fidelity_param.name] = fidelity_param.default
 
 
 class HarrisOpenTuner(MeasurementInterface):

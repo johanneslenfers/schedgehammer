@@ -13,8 +13,8 @@ from pyatf import TP, Interval, Set, Tuner, abort_conditions
 from pyatf.tuning_data import Cost, CostFunctionError
 from pyatf.search_techniques import AUCBandit
 
-ITERATIONS = 1000
-REPETITIONS = 10
+ITERATIONS = 100
+REPETITIONS = 5
 OUTPUT_DIR = "results/results_catbench/pyatf_harris"
 
 # Harris parameters
@@ -49,13 +49,11 @@ tuned_vec = TP('tuned_vec', exp_vec,
 # Load catbench study
 study = cb.benchmark("harris")
 
-# Fidelity parameters (defaults from rise_fidelity_params)
-fidelity_params = {
-    'iterations': 10,
-    'repeats': 5,
-    'wait_between_repeats': 0,
-    'wait_after_run': 10,
-}
+fidelity_params = {}
+
+for fidelity_param in study.definition.search_space.fidelity_params:
+    fidelity_params[fidelity_param.name] = fidelity_param.default
+
 
 
 def cost_function(config):

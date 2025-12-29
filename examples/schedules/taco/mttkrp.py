@@ -28,7 +28,7 @@ def finish_schedule(ctx: ScheduleContext):
     return ctx.environment["schedule_env"]
 
 
-class TacoProblem(Problem):
+class TacoMttkrpProblem(Problem):
 
     def __init__(self):
         super().__init__(
