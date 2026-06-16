@@ -454,3 +454,7 @@ The paper identifies several directions for future research:
 
 3. **Schedule Embeddings**: Exploring common subgraphs or motifs among high-performing schedules could enable the development of learned heuristics or schedule embeddings.
 
+## Publication
+
+Schedgehammer was published in the proceedings of the 35th ACM SIGPLAN International Conference on Compiler Construction. Find the paper here: [DOI:10.1145/3771775.3786282](https://doi.org/10.1145/3771775.3786282)
+
